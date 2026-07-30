@@ -9,18 +9,17 @@ import {
   ScrollView,
 } from "react-native";
 import { X, Check } from "lucide-react-native";
-import { FilterConfig, TableTranslations } from "./types";
+import { FilterConfig, FilterValue, TableTranslations } from "./types";
 import { TableTheme } from "./theme/tokens";
-import { useTableTheme } from "./hooks/useTableTheme";
 
 interface ColumnFilterModalProps {
   visible: boolean;
   onClose: () => void;
   columnTitle: string;
   filterConfig: FilterConfig;
-  currentValue: any;
-  onApply: (value: any) => void;
-  theme?: TableTheme;
+  currentValue: FilterValue;
+  onApply: (value: FilterValue) => void;
+  theme: TableTheme;
   translations: TableTranslations;
 }
 
@@ -34,8 +33,8 @@ export function ColumnFilterModal({
   theme,
   translations,
 }: ColumnFilterModalProps) {
-  const [tempValue, setTempValue] = useState<any>(currentValue);
-  const tableTheme = theme || useTableTheme(); // Fallback if not provided directly
+  const [tempValue, setTempValue] = useState<FilterValue>(currentValue);
+  const tableTheme = theme;
   const styles = React.useMemo(() => createStyles(tableTheme), [tableTheme]);
 
   // Modal açıldığında değeri senkronize et
@@ -61,7 +60,7 @@ export function ColumnFilterModal({
             style={styles.input}
             placeholder={translations.searchPlaceholder}
             placeholderTextColor={tableTheme.textSecondary}
-            value={tempValue || ""}
+            value={typeof tempValue === "string" ? tempValue : ""}
             onChangeText={setTempValue}
             autoFocus
           />
@@ -148,7 +147,9 @@ export function ColumnFilterModal({
           </View>
         );
 
-      case "number-range":
+      case "number-range": {
+        const rangeValue =
+          typeof tempValue === "object" && tempValue !== null ? tempValue : {};
         return (
           <View style={styles.rangeContainer}>
             <View style={styles.rangeInputWrapper}>
@@ -158,11 +159,11 @@ export function ColumnFilterModal({
                 placeholder="0"
                 keyboardType="numeric"
                 value={
-                  tempValue?.min !== undefined ? String(tempValue.min) : ""
+                  rangeValue.min !== undefined ? String(rangeValue.min) : ""
                 }
                 onChangeText={(text) =>
                   setTempValue({
-                    ...tempValue,
+                    ...rangeValue,
                     min: text ? Number(text) : undefined,
                   })
                 }
@@ -175,11 +176,11 @@ export function ColumnFilterModal({
                 placeholder="100"
                 keyboardType="numeric"
                 value={
-                  tempValue?.max !== undefined ? String(tempValue.max) : ""
+                  rangeValue.max !== undefined ? String(rangeValue.max) : ""
                 }
                 onChangeText={(text) =>
                   setTempValue({
-                    ...tempValue,
+                    ...rangeValue,
                     max: text ? Number(text) : undefined,
                   })
                 }
@@ -187,6 +188,7 @@ export function ColumnFilterModal({
             </View>
           </View>
         );
+      }
 
       default:
         return <Text>{translations.unknownFilter}</Text>;

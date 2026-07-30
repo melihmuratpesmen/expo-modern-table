@@ -9,7 +9,6 @@ import {
   ViewStyle,
   TextInput,
   useWindowDimensions,
-  ScrollView as RNScrollView,
   Platform,
 } from 'react-native';
 import { GestureDetector, ScrollView as GHScrollView } from 'react-native-gesture-handler';
@@ -23,7 +22,15 @@ import {
   Hand, // Added Hand
   AlignJustify, // Added AlignJustify for drag handle
 } from 'lucide-react-native';
-import { ModernTableProps, Column, Density, DEFAULT_TRANSLATIONS } from './types';
+import {
+  ModernTableProps,
+  Column,
+  Density,
+  SortDirection,
+  SelectionMode,
+  TableRow,
+  DEFAULT_TRANSLATIONS,
+} from './types';
 import { TableToolbar } from './TableToolbar';
 import { Checkbox } from './Checkbox';
 import { ColumnFilterModal } from './ColumnFilterModal';
@@ -39,6 +46,16 @@ const ROW_HEIGHTS: Record<Density, number> = {
   standard: 48,
   comfortable: 64,
 };
+
+function nextSortDirection(
+  currentColumn: string | undefined,
+  currentDirection: SortDirection | undefined,
+  pressedKey: string
+): SortDirection {
+  if (currentColumn !== pressedKey || !currentDirection) return 'asc';
+  if (currentDirection === 'asc') return 'desc';
+  return null;
+}
 
 // Helper: Darken hex color by amount (0-100)
 const darkenHex = (color: string | undefined, amount: number) => {
@@ -63,9 +80,8 @@ const darkenHex = (color: string | undefined, amount: number) => {
 };
 
 const AnimatedGHScrollView = Animated.createAnimatedComponent(GHScrollView);
-const AnimatedRNScrollView = Animated.createAnimatedComponent(RNScrollView);
 
-export function ModernTable<T extends { id: string | number }>({
+export function ModernTable<T extends TableRow>({
   data,
   columns,
   onSort,
@@ -75,72 +91,83 @@ export function ModernTable<T extends { id: string | number }>({
   containerStyle,
   headerStyle,
   rowStyle,
-  emptyMessage = 'No data found.',
-  // Toolbar Props
   searchQuery,
   onSearchChange,
   density = 'standard',
   onDensityChange,
   visibleColumns,
   onToggleColumn,
-  // Selection Props
   enableSelection,
   selectedIds,
-  onToggleOne,
+  onToggleRow,
   onToggleAll,
   isAllSelected,
-  // Edit Props
   onRowChange,
   stickyColumns,
   onToggleSticky,
   filters,
   onFilterChange,
-  // Theme Props
   theme = 'light',
   themeConfig,
+  columnOrder: columnOrderProp,
   onColumnReorder,
-  // Row Drag
   enableRowReorder,
-  enableColumnReorder = false, // Default false to match typical specialized table behavior
+  enableColumnReorder = false,
   onRowReorder,
-  rowGroupKey, // New prop
+  rowGroupKey,
   translations,
   getRowStyle,
-  scrollEnabled = true, // Default true
+  scrollEnabled = true,
   onRowPress,
+  selectionMode: selectionModeProp,
+  onSelectionModeChange,
 }: ModernTableProps<T>) {
   const tableTheme = useTableTheme(theme, themeConfig);
   const styles = useMemo(() => createStyles(tableTheme), [tableTheme]);
   const t = { ...DEFAULT_TRANSLATIONS, ...translations };
 
-  // Initialize column order
-  const [columnOrder, setColumnOrder] = useState<string[]>(columns.map(c => c.key as string));
+  const [internalColumnOrder, setInternalColumnOrder] = useState<string[]>(() =>
+    columns.map(c => c.key as string)
+  );
+  const isColumnOrderControlled = columnOrderProp !== undefined;
+  const columnOrder = isColumnOrderControlled ? columnOrderProp : internalColumnOrder;
 
-  // Sync column order if columns prop changes significantly
   React.useEffect(() => {
-    if (columns.length !== columnOrder.length) {
-      setColumnOrder(columns.map(c => c.key as string));
-    }
-  }, [columns.length]);
+    if (isColumnOrderControlled) return;
+    const keys = columns.map(c => c.key as string);
+    setInternalColumnOrder(prev => {
+      if (prev.length === keys.length && prev.every((k, i) => k === keys[i])) return prev;
+      // Preserve relative order for keys that still exist, append new keys
+      const keySet = new Set(keys);
+      const kept = prev.filter(k => keySet.has(k));
+      const added = keys.filter(k => !kept.includes(k));
+      return [...kept, ...added];
+    });
+  }, [columns, isColumnOrderControlled]);
 
-  const [selectionMode, setSelectionMode] = useState<'select' | 'reorder'>('select');
+  const [internalSelectionMode, setInternalSelectionMode] = useState<SelectionMode>('select');
+  const isSelectionModeControlled = selectionModeProp !== undefined;
+  const selectionMode = isSelectionModeControlled ? selectionModeProp : internalSelectionMode;
 
   const toggleSelectionMode = () => {
-    setSelectionMode(prev => (prev === 'select' ? 'reorder' : 'select'));
+    const next: SelectionMode = selectionMode === 'select' ? 'reorder' : 'select';
+    if (!isSelectionModeControlled) {
+      setInternalSelectionMode(next);
+    }
+    onSelectionModeChange?.(next);
   };
 
   const handleColumnReorder = (fromIndex: number, toIndex: number) => {
     if (fromIndex === toIndex) return;
 
-    // Create new order
     const newOrder = [...columnOrder];
     const [movedItem] = newOrder.splice(fromIndex, 1);
-
-    // Clamp toIndex
     const targetIndex = Math.max(0, Math.min(newOrder.length, toIndex));
     newOrder.splice(targetIndex, 0, movedItem);
 
-    setColumnOrder(newOrder);
+    if (!isColumnOrderControlled) {
+      setInternalColumnOrder(newOrder);
+    }
     onColumnReorder?.(newOrder);
   };
 
@@ -333,7 +360,7 @@ export function ModernTable<T extends { id: string | number }>({
       >
         <Checkbox
           checked={isHeader ? !!isAllSelected : item ? selectedIds?.has(item.id) || false : false}
-          onPress={() => (isHeader ? onToggleAll?.() : item && onToggleOne?.(item.id))}
+          onPress={() => (isHeader ? onToggleAll?.() : item && onToggleRow?.(item.id))}
           activeColor={tableTheme.primary}
           borderColor={tableTheme.textSecondary}
         />
@@ -378,7 +405,11 @@ export function ModernTable<T extends { id: string | number }>({
               col.align === 'center' && { justifyContent: 'center' },
               col.align === 'right' && { justifyContent: 'flex-end' },
             ]}
-            onPress={() => isSortable && onSort?.(col.key as string, 'asc')}
+            onPress={() => {
+              if (!isSortable || !onSort) return;
+              const key = col.key as string;
+              onSort(key, nextSortDirection(sortColumn, sortDirection, key));
+            }}
             disabled={!isSortable}
           >
             <Text style={styles.headerText}>{col.title}</Text>
@@ -664,7 +695,7 @@ export function ModernTable<T extends { id: string | number }>({
                   scrollEnabled={scrollEnabled}
                   ListEmptyComponent={
                     <View style={styles.emptyContainer}>
-                      <Text style={styles.emptyText}>{emptyMessage}</Text>
+                      <Text style={styles.emptyText}>{t.empty}</Text>
                     </View>
                   }
                 />
@@ -716,7 +747,12 @@ export function ModernTable<T extends { id: string | number }>({
                 onPress={() => pagination.onPageChange(pagination.currentPage - 1)}
                 style={[styles.pageButton, pagination.currentPage === 1 && styles.disabledButton]}
               >
-                <ChevronLeft size={20} color={pagination.currentPage === 1 ? '#ccc' : '#333'} />
+                <ChevronLeft
+                  size={20}
+                  color={
+                    pagination.currentPage === 1 ? tableTheme.textSecondary : tableTheme.text
+                  }
+                />
               </TouchableOpacity>
               <TouchableOpacity
                 disabled={pagination.currentPage === pagination.totalPages}
@@ -728,7 +764,11 @@ export function ModernTable<T extends { id: string | number }>({
               >
                 <ChevronRight
                   size={20}
-                  color={pagination.currentPage === pagination.totalPages ? '#ccc' : '#333'}
+                  color={
+                    pagination.currentPage === pagination.totalPages
+                      ? tableTheme.textSecondary
+                      : tableTheme.text
+                  }
                 />
               </TouchableOpacity>
             </View>

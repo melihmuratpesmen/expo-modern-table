@@ -38,6 +38,8 @@ Make sure `GestureHandlerRootView` wraps your app and Reanimated babel plugin is
 
 ## Quick start
 
+`useTable` owns state. `ModernTable` is controlled — spread `getTableProps()` and pass `columns`.
+
 ```tsx
 import { ModernTable, useTable, Column } from 'expo-modern-table';
 
@@ -51,41 +53,32 @@ const columns: Column<Row>[] = [
 export function ScoresTable({ data }: { data: Row[] }) {
   const table = useTable(data, columns, 20);
 
-  return (
-    <ModernTable
-      data={table.paginatedData}
-      columns={columns}
-      searchQuery={table.searchQuery}
-      onSearchChange={table.setSearchQuery}
-      sortColumn={table.sortConfig.key as string}
-      sortDirection={table.sortConfig.direction}
-      onSort={(key) => table.handleSort(key as keyof Row)}
-      density={table.density}
-      onDensityChange={table.setDensity}
-      visibleColumns={table.visibleColumns}
-      onToggleColumn={table.toggleColumnVisibility}
-      enableSelection
-      selectedIds={table.selectedIds}
-      onToggleOne={table.toggleSelection}
-      onToggleAll={table.toggleAllSelection}
-      isAllSelected={table.isAllSelected}
-      pagination={{
-        currentPage: table.currentPage,
-        totalPages: table.totalPages,
-        itemsPerPage: table.itemsPerPage,
-        onPageChange: table.setCurrentPage,
-        itemsPerPageOptions: [10, 20, 50],
-        onItemsPerPageChange: table.setItemsPerPage,
-      }}
-    />
-  );
+  return <ModernTable columns={columns} {...table.getTableProps()} />;
 }
 ```
+
+### State model
+
+| Concern | Who owns it |
+|---------|-------------|
+| search, sort, filter, selection, density, visible/sticky columns, pagination | `useTable` (or your own controlled props) |
+| `selectionMode`, `columnOrder` | Semi-controlled: pass props to control, else internal |
+| cell editing, open filter modal | Always internal to `ModernTable` |
+
+### Public exports
+
+`ModernTable`, `useTable`, `useTableTheme`, types, themes, search helpers.
+
+Toolbar / drag / checkbox / filter modal are **internal** — not part of the public API.
+
+Removed / deferred props are tracked in [`docs/DEFERRED.md`](docs/DEFERRED.md).
 
 ## Theming
 
 ```tsx
 <ModernTable
+  columns={columns}
+  {...table.getTableProps()}
   theme="dark"
   themeConfig={{
     primary: '#0ea5e9',
@@ -96,7 +89,7 @@ export function ScoresTable({ data }: { data: Row[] }) {
       bold: 'Poppins_700Bold',
     },
   }}
-  // ...
+  translations={{ empty: 'No rows yet', page: 'Page' }}
 />
 ```
 
@@ -112,11 +105,18 @@ export function ScoresTable({ data }: { data: Row[] }) {
 | `lucide-react-native` | yes |
 | `expo-screen-orientation` | optional |
 
+## Example app
+
+```bash
+npm run example
+# or: cd example && npm start
+```
+
+See [`example/README.md`](example/README.md). The playground links this package via `file:..` and demos search, sort, filters, selection, reorder, edit, and theming.
+
 ## Status
 
-This is the **extract** phase: source lifted from MyExamy mobile, app-specific imports removed, package scaffolding in place.
-
-Next: API polish, example Expo app, docs site, npm publish.
+Public API polish done (`0.x`). Example app included. Next: npm publish.
 
 ## License
 

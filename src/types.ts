@@ -2,13 +2,23 @@ import { ReactNode } from 'react';
 import { StyleProp, ViewStyle } from 'react-native';
 import { TableTheme } from './theme/tokens';
 
+export type RowId = string | number;
+export type TableRow = { id: RowId };
+
 export type SortDirection = 'asc' | 'desc' | null;
 export type Density = 'compact' | 'standard' | 'comfortable';
+export type SelectionMode = 'select' | 'reorder';
 
 export interface FilterConfig {
   type: 'text' | 'select' | 'boolean' | 'number-range';
   options?: string[];
 }
+
+export type FilterValue =
+  | string
+  | boolean
+  | { min?: number; max?: number }
+  | undefined;
 
 export interface TableTranslations {
   searchPlaceholder: string;
@@ -25,6 +35,7 @@ export interface TableTranslations {
   columns: string;
   show: string;
   page: string;
+  empty: string;
 }
 
 export const DEFAULT_TRANSLATIONS: TableTranslations = {
@@ -42,10 +53,11 @@ export const DEFAULT_TRANSLATIONS: TableTranslations = {
   columns: 'Columns',
   show: 'Show:',
   page: 'Page',
+  empty: 'No data found.',
 };
 
 export interface Column<T> {
-  key: keyof T | string; // keyof T is better, but string allowed for flexibility
+  key: Extract<keyof T, string> | (string & {});
   title: string;
   width?: number;
   isSticky?: boolean;
@@ -54,7 +66,6 @@ export interface Column<T> {
   editable?: boolean;
   hidden?: boolean;
 
-  // Styling & Config
   isMarked?: boolean;
   markedColor?: string;
   headerStyle?: StyleProp<ViewStyle>;
@@ -71,26 +82,27 @@ export interface PaginationProps {
   onItemsPerPageChange?: (itemsPerPage: number) => void;
 }
 
-export interface ModernTableProps<T> {
+/**
+ * ModernTable is primarily a controlled presentational component.
+ * Use `useTable()` for state, or pass props yourself.
+ *
+ * Internal-only UI state (not in this interface): cell editing, open filter modal.
+ * Semi-controlled: `selectionMode`, `columnOrder` — controlled when provided, else internal.
+ */
+export interface ModernTableProps<T extends TableRow> {
   data: T[];
   columns: Column<T>[];
-  stickyHeader?: boolean;
 
   // Selection
   enableSelection?: boolean;
-  onSelectionChange?: (selectedIds: (string | number)[]) => void;
-  selectedIds?: Set<string | number>;
+  selectedIds?: Set<RowId>;
   isAllSelected?: boolean;
   onToggleAll?: () => void;
-  onToggleOne?: (id: string | number) => void;
+  onToggleRow?: (id: RowId) => void;
 
   // Search
-  enableGlobalSearch?: boolean;
   searchQuery?: string;
   onSearchChange?: (text: string) => void;
-
-  // Loading
-  isLoading?: boolean;
 
   // Sort
   onSort?: (columnKey: string, direction: SortDirection) => void;
@@ -107,6 +119,8 @@ export interface ModernTableProps<T> {
   // Column Visibility & Order
   visibleColumns?: string[];
   onToggleColumn?: (key: string) => void;
+  /** Controlled column order. When omitted, order is managed internally. */
+  columnOrder?: string[];
   onColumnReorder?: (newOrder: string[]) => void;
   enableColumnReorder?: boolean;
 
@@ -115,8 +129,8 @@ export interface ModernTableProps<T> {
   onToggleSticky?: (key: string) => void;
 
   // Filters
-  filters?: Record<string, any>;
-  onFilterChange?: (key: string, value: any) => void;
+  filters?: Record<string, FilterValue>;
+  onFilterChange?: (key: string, value: FilterValue) => void;
 
   // Row Operations
   onRowChange?: (newItem: T) => void;
@@ -129,16 +143,16 @@ export interface ModernTableProps<T> {
   headerStyle?: StyleProp<ViewStyle>;
   rowStyle?: StyleProp<ViewStyle>;
   getRowStyle?: (item: T, index: number) => StyleProp<ViewStyle>;
-  emptyMessage?: string;
 
   // Theme & I18n
   theme?: TableTheme | 'light' | 'dark';
   themeConfig?: Partial<TableTheme>;
   translations?: Partial<TableTranslations>;
 
-  // Toolbar specific
-  selectionMode?: 'select' | 'reorder';
-  onToggleSelectionMode?: () => void;
+  // Selection vs reorder mode (semi-controlled)
+  selectionMode?: SelectionMode;
+  onSelectionModeChange?: (mode: SelectionMode) => void;
+
   scrollEnabled?: boolean;
   onRowPress?: (item: T) => void;
 }

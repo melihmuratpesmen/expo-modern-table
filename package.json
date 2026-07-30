@@ -9,11 +9,16 @@
   "files": [
     "src",
     "LICENSE",
-    "README.md"
+    "README.md",
+    "docs"
   ],
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "lint": "echo \"No linter configured yet\""
+    "lint": "echo \"No linter configured yet\"",
+    "example": "npm --prefix example start",
+    "example:ios": "npm --prefix example run ios",
+    "example:android": "npm --prefix example run android",
+    "example:web": "npm --prefix example run web"
   },
   "keywords": [
     "expo",

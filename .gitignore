@@ -4,6 +4,13 @@ node_modules/
 dist/
 lib/
 build/
+example/.expo/
+example/dist/
+example/ios/
+example/android/
+example/.claude/
+example/AGENTS.md
+example/CLAUDE.md
 
 # OS / IDE
 .DS_Store
