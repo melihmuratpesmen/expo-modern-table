@@ -222,7 +222,7 @@ A dedicated docs site (Docusaurus / Nextra) is **not** required for `0.1.x`. Whe
 
 | | |
 |--|--|
-| npm | [`expo-modern-table@0.1.0`](https://www.npmjs.com/package/expo-modern-table) |
+| npm | [`expo-modern-table@0.1.1`](https://www.npmjs.com/package/expo-modern-table) |
 | Stability | Early `0.x` — prefer additive changes; breaking changes possible before `1.0` |
 | Example | Expo Go **SDK 54** (current App Store Expo Go) |
 

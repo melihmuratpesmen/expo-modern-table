@@ -107,3 +107,4 @@ Depends on optional `expo-screen-orientation`. No bare-RN fallback beyond hiding
 | Public API polish | `0.1.0` | Controlled model, renames, i18n `empty`, typed filters, narrowed exports, `getTableProps()` |
 | Example Expo app (SDK 54) | `0.1.0` | Expo Go–compatible playground |
 | npm publish | `0.1.0` | https://www.npmjs.com/package/expo-modern-table |
+| Docs / media / README landing | `0.1.1` | Badges, previews, docs index synced to npm |
