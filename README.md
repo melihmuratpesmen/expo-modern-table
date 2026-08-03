@@ -18,6 +18,20 @@ A modern, feature-rich data table for **Expo** and **React Native**.
   <img src="docs/media/demo-dark.png" alt="Dark theme table" width="360" />
 </p>
 
+### Mobile (Expo Go)
+
+<p align="center">
+  <img src="docs/media/demo-mobile.gif" alt="expo-modern-table on mobile: light, filter, dark" width="280" />
+</p>
+
+<p align="center">
+  <img src="docs/media/demo-mobile-light.jpg" alt="Mobile light theme" width="200" />
+  &nbsp;
+  <img src="docs/media/demo-mobile-filter.jpg" alt="Mobile filter modal" width="200" />
+  &nbsp;
+  <img src="docs/media/demo-mobile-dark.jpg" alt="Mobile dark theme" width="200" />
+</p>
+
 ## Features
 
 - Horizontal sticky columns + sticky selection column
