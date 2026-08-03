@@ -118,7 +118,11 @@ Requires **Expo Go SDK 54**. Full tester steps: [`example/README.md`](example/RE
 
 ## Status
 
-Public API polish done (`0.x`). Example targets Expo Go SDK 54. Next: npm publish.
+Published on npm as [`expo-modern-table@0.1.0`](https://www.npmjs.com/package/expo-modern-table).
+
+- Public API polished (`0.x` — may evolve)
+- Example app targets **Expo Go SDK 54**
+- Deferred features: [`docs/DEFERRED.md`](docs/DEFERRED.md)
 
 ## License
 

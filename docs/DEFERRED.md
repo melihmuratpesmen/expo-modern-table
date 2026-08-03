@@ -87,11 +87,11 @@ Depends on optional `expo-screen-orientation`. No bare-RN fallback beyond hiding
 
 ## Intentionally postponed features (not started)
 
+- npm publish pipeline
 - Column resize
 - Column pin presets / persistence (AsyncStorage)
 - CSV / export
 - Virtualized horizontal sticky improvements
-- npm publish pipeline
 
 
 ## When picking work up
@@ -104,6 +104,7 @@ Depends on optional `expo-screen-orientation`. No bare-RN fallback beyond hiding
 
 | Item | Version | Notes |
 |------|---------|-------|
-| Extract to `expo-modern-table` | `0.1.0-dev` | Separate repo |
-| Public API polish | `0.1.0-dev` | Controlled model, renames, i18n `empty`, typed filters, narrowed exports, `getTableProps()` |
-| Example Expo app | `0.1.0-dev` | `example/` playground linked via `file:..` |
+| Extract to `expo-modern-table` | `0.1.0` | Separate repo |
+| Public API polish | `0.1.0` | Controlled model, renames, i18n `empty`, typed filters, narrowed exports, `getTableProps()` |
+| Example Expo app (SDK 54) | `0.1.0` | Expo Go–compatible playground |
+| npm publish | `0.1.0` | https://www.npmjs.com/package/expo-modern-table |
