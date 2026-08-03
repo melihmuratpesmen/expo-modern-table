@@ -16,6 +16,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "echo \"No linter configured yet\"",
     "example": "npm --prefix example start",
+    "example:go": "npm --prefix example run start:go -- --port 8082",
+    "example:tunnel": "npm --prefix example run tunnel",
     "example:ios": "npm --prefix example run ios",
     "example:android": "npm --prefix example run android",
     "example:web": "npm --prefix example run web"

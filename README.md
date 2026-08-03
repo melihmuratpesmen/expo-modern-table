@@ -105,18 +105,20 @@ Removed / deferred props are tracked in [`docs/DEFERRED.md`](docs/DEFERRED.md).
 | `lucide-react-native` | yes |
 | `expo-screen-orientation` | optional |
 
-## Example app
+## Example app (Expo Go · SDK 54)
 
 ```bash
-npm run example
-# or: cd example && npm start
+npm run example:go          # same Wi‑Fi — QR is in the terminal
+cd example && npm run tunnel  # other network / friend testing
 ```
 
-See [`example/README.md`](example/README.md). The playground links this package via `file:..` and demos search, sort, filters, selection, reorder, edit, and theming.
+**Note:** `http://localhost:8082` is Metro only — it does not show the QR. Scan the terminal QR, or in Expo Go enter `exp://YOUR_IP:8082`.
+
+Requires **Expo Go SDK 54**. Full tester steps: [`example/README.md`](example/README.md).
 
 ## Status
 
-Public API polish done (`0.x`). Example app included. Next: npm publish.
+Public API polish done (`0.x`). Example targets Expo Go SDK 54. Next: npm publish.
 
 ## License
 

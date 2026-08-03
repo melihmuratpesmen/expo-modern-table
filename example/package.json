@@ -4,27 +4,32 @@
   "main": "index.ts",
   "dependencies": {
     "@shopify/flash-list": "2.0.2",
-    "expo": "~57.0.9",
+    "babel-preset-expo": "~54.0.0",
+    "expo": "~54.0.23",
     "expo-modern-table": "file:..",
-    "expo-screen-orientation": "~57.0.1",
-    "expo-status-bar": "~57.0.1",
-    "lucide-react-native": "^1.28.0",
-    "react": "19.2.3",
-    "react-native": "0.86.2",
-    "react-native-gesture-handler": "~2.32.0",
-    "react-native-reanimated": "4.5.1",
-    "react-native-safe-area-context": "~5.7.0",
-    "react-native-svg": "15.15.4"
+    "expo-screen-orientation": "~9.0.8",
+    "expo-status-bar": "~3.0.8",
+    "lucide-react-native": "^0.556.0",
+    "react": "19.1.0",
+    "react-native": "0.81.5",
+    "react-native-gesture-handler": "~2.28.0",
+    "react-native-reanimated": "~4.1.1",
+    "react-native-safe-area-context": "~5.6.0",
+    "react-native-svg": "15.12.1",
+    "react-native-worklets": "0.5.1"
   },
   "devDependencies": {
-    "@types/react": "~19.2.2",
-    "typescript": "~6.0.3"
+    "@types/react": "~19.1.0",
+    "typescript": "~5.9.2"
   },
   "scripts": {
     "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
-    "web": "expo start --web"
+    "start:go": "expo start --go",
+    "android": "expo start --android --go",
+    "ios": "expo start --ios --go",
+    "web": "expo start --web",
+    "tunnel": "expo start --go --tunnel",
+    "typecheck": "tsc --noEmit"
   },
   "private": true
 }
