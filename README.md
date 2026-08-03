@@ -1,80 +1,111 @@
 # expo-modern-table
 
-A modern, feature-rich data table for **Expo** and **React Native**.
+Performance-minded data tables for **Expo** and **React Native**.
 
-[![npm version](https://img.shields.io/npm/v/expo-modern-table.svg)](https://www.npmjs.com/package/expo-modern-table)
+[![npm](https://img.shields.io/npm/v/expo-modern-table.svg?color=4f46e5)](https://www.npmjs.com/package/expo-modern-table)
+[![downloads](https://img.shields.io/npm/dm/expo-modern-table.svg)](https://www.npmjs.com/package/expo-modern-table)
 [![license](https://img.shields.io/npm/l/expo-modern-table.svg)](./LICENSE)
-[![Expo SDK](https://img.shields.io/badge/Expo%20Go-SDK%2054-000020.svg)](./example/README.md)
+[![Expo Go](https://img.shields.io/badge/Expo%20Go-SDK%2054-000020?logo=expo)](./example/README.md)
+[![TypeScript](https://img.shields.io/badge/TypeScript-ready-3178c6?logo=typescript&logoColor=white)](./src/types.ts)
 
-> Extracted from production use in [MyExamy](https://myexamy.com). Early `0.x` — API may evolve.
+Built on [`@shopify/flash-list`](https://shopify.github.io/flash-list/). Battle-tested in production at [MyExamy](https://myexamy.com).  
+`0.x` — public API may evolve; see [changelog intent](#status).
+
+<br />
+
+<table>
+  <tr>
+    <td width="62%" align="center" valign="top">
+      <img src="docs/media/demo.gif" alt="Desktop-style preview: light, filter, dark" width="100%" />
+      <br />
+      <sub>Preview · light / filter / dark</sub>
+    </td>
+    <td width="38%" align="center" valign="top">
+      <img src="docs/media/demo-mobile.gif" alt="Mobile Expo Go preview" width="72%" />
+      <br />
+      <sub>Mobile · Expo Go</sub>
+    </td>
+  </tr>
+</table>
 
 <p align="center">
-  <img src="docs/media/demo.gif" alt="expo-modern-table demo: light, filter, and dark themes" width="720" />
+  <a href="#installation"><b>Install</b></a> ·
+  <a href="#quick-start"><b>Quick start</b></a> ·
+  <a href="#features"><b>Features</b></a> ·
+  <a href="#api-overview"><b>API</b></a> ·
+  <a href="./docs/README.md"><b>Docs</b></a> ·
+  <a href="./example/README.md"><b>Example</b></a>
 </p>
 
-<p align="center">
-  <img src="docs/media/demo-light.png" alt="Light theme table" width="360" />
-  &nbsp;
-  <img src="docs/media/demo-dark.png" alt="Dark theme table" width="360" />
-</p>
+---
 
-### Mobile (Expo Go)
+## Why this library
 
-<p align="center">
-  <img src="docs/media/demo-mobile.gif" alt="expo-modern-table on mobile: light, filter, dark" width="280" />
-</p>
+Most RN tables are either too minimal or too web-centric. `expo-modern-table` focuses on **mobile-first data work**: sticky columns, toolbar controls, client-side filter/sort/paginate via `useTable`, and theming that fits Expo apps — without locking you into Expo-only APIs.
 
-<p align="center">
-  <img src="docs/media/demo-mobile-light.jpg" alt="Mobile light theme" width="200" />
-  &nbsp;
-  <img src="docs/media/demo-mobile-filter.jpg" alt="Mobile filter modal" width="200" />
-  &nbsp;
-  <img src="docs/media/demo-mobile-dark.jpg" alt="Mobile dark theme" width="200" />
-</p>
+Works with **Expo** and **bare React Native**. Optional `expo-screen-orientation` only powers the fullscreen toolbar action.
+
+---
 
 ## Features
 
-- Horizontal sticky columns + sticky selection column
-- Column sorting, filtering (text / select / boolean / number-range)
-- Global search with Turkish-aware normalization
-- Row selection (single / all)
-- Column visibility + sticky toggles via toolbar
-- Column reorder & row reorder (drag)
-- Density modes: compact / standard / comfortable
-- Light / dark themes + `themeConfig` overrides
-- Custom fonts via theme (`fontFamily`)
-- Pagination UI
-- Inline cell editing
-- Row grouping visual styles
-- i18n via `translations` prop
-- Built on [`@shopify/flash-list`](https://shopify.github.io/flash-list/)
+| Area | Capabilities |
+|------|----------------|
+| **Layout** | Horizontal scroll, sticky columns, sticky selection column, row grouping styles |
+| **Data ops** | Sort (`asc` → `desc` → clear), global search, column filters (text / select / boolean / range) |
+| **Selection** | Single-row toggle, select-all on page, selection count in toolbar |
+| **Columns** | Show/hide, pin/unpin sticky, drag reorder |
+| **Rows** | Drag reorder, inline cell edit, `onRowPress` |
+| **UX** | Density (`compact` / `standard` / `comfortable`), pagination UI, empty state |
+| **Design** | Light / dark themes, `themeConfig` overrides, custom `fontFamily` |
+| **i18n** | Full `translations` map (search, filter, pagination, empty, …) |
+| **Perf** | FlashList recycling + iOS sort remount safeguards |
 
-## Install
+---
+
+## Installation
 
 ```bash
 npx expo install expo-modern-table @shopify/flash-list react-native-gesture-handler react-native-reanimated react-native-svg
 npm install lucide-react-native
 ```
 
-Optional (toolbar fullscreen / landscape lock):
+**Optional** (toolbar landscape / fullscreen):
 
 ```bash
 npx expo install expo-screen-orientation
 ```
 
-Make sure `GestureHandlerRootView` wraps your app and Reanimated babel plugin is enabled.
+**Required app setup**
+
+1. Wrap the app in `GestureHandlerRootView`
+2. Enable the Reanimated Babel plugin
+
+### Peer dependencies
+
+| Package | Required |
+|---------|----------|
+| `react`, `react-native` | Yes |
+| `@shopify/flash-list` | Yes |
+| `react-native-gesture-handler` | Yes |
+| `react-native-reanimated` | Yes |
+| `react-native-svg` | Yes |
+| `lucide-react-native` | Yes |
+| `expo-screen-orientation` | Optional |
+
+---
 
 ## Quick start
 
-`useTable` owns state. `ModernTable` is controlled — spread `getTableProps()` and pass `columns`.
+`useTable` owns client-side state. `ModernTable` is presentational — spread `getTableProps()` and pass `columns`.
 
 ```tsx
-import { ModernTable, useTable, Column } from 'expo-modern-table';
+import { ModernTable, useTable, type Column } from 'expo-modern-table';
 
 type Row = { id: string; name: string; score: number };
 
 const columns: Column<Row>[] = [
-  { key: 'name', title: 'Name', width: 160 },
+  { key: 'name', title: 'Name', width: 160, isSticky: true },
   { key: 'score', title: 'Score', width: 100, align: 'right' },
 ];
 
@@ -85,23 +116,55 @@ export function ScoresTable({ data }: { data: Row[] }) {
 }
 ```
 
-### State model
+### State ownership
 
-| Concern | Who owns it |
-|---------|-------------|
-| search, sort, filter, selection, density, visible/sticky columns, pagination | `useTable` (or your own controlled props) |
-| `selectionMode`, `columnOrder` | Semi-controlled: pass props to control, else internal |
-| cell editing, open filter modal | Always internal to `ModernTable` |
+| Concern | Owner |
+|---------|--------|
+| Search, sort, filters, selection, density, visible/sticky columns, pagination | `useTable` (or your own controlled props) |
+| `selectionMode`, `columnOrder` | Semi-controlled — pass props to control, otherwise internal |
+| Cell editing, open filter modal | Always internal to `ModernTable` |
+
+---
+
+## API overview
 
 ### Public exports
 
-`ModernTable`, `useTable`, `useTableTheme`, types, themes, search helpers.
+| Export | Role |
+|--------|------|
+| `ModernTable` | Table UI |
+| `useTable` | State + `getTableProps()` |
+| `useTableTheme` | Resolve light/dark + overrides |
+| `lightTheme` / `darkTheme` / `defaultFontFamily` | Theme tokens |
+| `Column`, `ModernTableProps`, `FilterConfig`, … | Types |
+| `normalizeSearchText` / `includesSearch` | Search helpers |
 
-Toolbar / drag / checkbox / filter modal are **internal** — not part of the public API.
+Toolbar, drag handles, checkbox, and filter modal are **internal** (not part of the stable public surface).
 
-Removed / deferred props are tracked in [`docs/DEFERRED.md`](docs/DEFERRED.md).
+### Column essentials
 
-## Theming
+```ts
+type Column<T> = {
+  key: string;
+  title: string;
+  width?: number;
+  align?: 'left' | 'center' | 'right';
+  isSticky?: boolean;
+  hidden?: boolean;
+  editable?: boolean;
+  renderCell?: (item: T, index: number) => React.ReactNode;
+  filterConfig?: {
+    type: 'text' | 'select' | 'boolean' | 'number-range';
+    options?: string[];
+  };
+};
+```
+
+Deeper notes: [`docs/README.md`](./docs/README.md) · deferred / removed props: [`docs/DEFERRED.md`](./docs/DEFERRED.md)
+
+---
+
+## Theming & i18n
 
 ```tsx
 <ModernTable
@@ -117,41 +180,54 @@ Removed / deferred props are tracked in [`docs/DEFERRED.md`](docs/DEFERRED.md).
       bold: 'Poppins_700Bold',
     },
   }}
-  translations={{ empty: 'No rows yet', page: 'Page' }}
+  translations={{
+    searchPlaceholder: 'Search…',
+    empty: 'No rows yet',
+    page: 'Page',
+  }}
 />
 ```
 
-## Peer dependencies
+---
 
-| Package | Required |
-|---------|----------|
-| `react` / `react-native` | yes |
-| `@shopify/flash-list` | yes |
-| `react-native-gesture-handler` | yes |
-| `react-native-reanimated` | yes |
-| `react-native-svg` | yes (for lucide icons) |
-| `lucide-react-native` | yes |
-| `expo-screen-orientation` | optional |
+## Example app
 
-## Example app (Expo Go · SDK 54)
+Try the playground on a phone with **Expo Go (SDK 54)**:
 
 ```bash
-npm run example:go          # same Wi‑Fi — QR is in the terminal
-cd example && npm run tunnel  # other network / friend testing
+git clone https://github.com/melihmuratpesmen/expo-modern-table.git
+cd expo-modern-table
+npm run example:go          # QR is in the terminal (not localhost)
+# or: npm run example:tunnel
 ```
 
-**Note:** `http://localhost:8082` is Metro only — it does not show the QR. Scan the terminal QR, or in Expo Go enter `exp://YOUR_IP:8082`.
+Details: [`example/README.md`](./example/README.md)
 
-Requires **Expo Go SDK 54**. Full tester steps: [`example/README.md`](example/README.md).
+---
+
+## Documentation
+
+| Doc | Contents |
+|-----|----------|
+| [`docs/README.md`](./docs/README.md) | Documentation index |
+| [`docs/DEFERRED.md`](./docs/DEFERRED.md) | Removed / planned APIs |
+| [`docs/KNOWN_ISSUES.md`](./docs/KNOWN_ISSUES.md) | iOS sort / FlashList notes |
+| [`example/README.md`](./example/README.md) | Expo Go testing guide |
+
+A dedicated docs site (Docusaurus / Nextra) is **not** required for `0.1.x`. When the API grows (remote pagination, column resize, etc.), we can promote `docs/` into a site without changing the package surface.
+
+---
 
 ## Status
 
-Published on npm as [`expo-modern-table@0.1.0`](https://www.npmjs.com/package/expo-modern-table).
+| | |
+|--|--|
+| npm | [`expo-modern-table@0.1.0`](https://www.npmjs.com/package/expo-modern-table) |
+| Stability | Early `0.x` — prefer additive changes; breaking changes possible before `1.0` |
+| Example | Expo Go **SDK 54** (current App Store Expo Go) |
 
-- Public API polished (`0.x` — may evolve)
-- Example app targets **Expo Go SDK 54**
-- Deferred features: [`docs/DEFERRED.md`](docs/DEFERRED.md)
+---
 
 ## License
 
-MIT
+[MIT](./LICENSE) © [melihmuratpesmen](https://github.com/melihmuratpesmen)
