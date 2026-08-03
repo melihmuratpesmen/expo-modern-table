@@ -16,12 +16,12 @@ Built on [`@shopify/flash-list`](https://shopify.github.io/flash-list/). Battle-
 <table>
   <tr>
     <td width="62%" align="center" valign="top">
-      <img src="docs/media/demo.gif" alt="Desktop-style preview: light, filter, dark" width="100%" />
+      <img src="https://raw.githubusercontent.com/melihmuratpesmen/expo-modern-table/main/docs/media/demo.gif" alt="Desktop-style preview: light, filter, dark" width="100%" />
       <br />
       <sub>Preview · light / filter / dark</sub>
     </td>
     <td width="38%" align="center" valign="top">
-      <img src="docs/media/demo-mobile.gif" alt="Mobile Expo Go preview" width="72%" />
+      <img src="https://raw.githubusercontent.com/melihmuratpesmen/expo-modern-table/main/docs/media/demo-mobile.gif" alt="Mobile Expo Go preview" width="72%" />
       <br />
       <sub>Mobile · Expo Go</sub>
     </td>
