@@ -87,7 +87,6 @@ Depends on optional `expo-screen-orientation`. No bare-RN fallback beyond hiding
 
 ## Intentionally postponed features (not started)
 
-- npm publish pipeline
 - Column resize
 - Column pin presets / persistence (AsyncStorage)
 - CSV / export
