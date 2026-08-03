@@ -2,7 +2,21 @@
 
 A modern, feature-rich data table for **Expo** and **React Native**.
 
+[![npm version](https://img.shields.io/npm/v/expo-modern-table.svg)](https://www.npmjs.com/package/expo-modern-table)
+[![license](https://img.shields.io/npm/l/expo-modern-table.svg)](./LICENSE)
+[![Expo SDK](https://img.shields.io/badge/Expo%20Go-SDK%2054-000020.svg)](./example/README.md)
+
 > Extracted from production use in [MyExamy](https://myexamy.com). Early `0.x` — API may evolve.
+
+<p align="center">
+  <img src="docs/media/demo.gif" alt="expo-modern-table demo: light, filter, and dark themes" width="720" />
+</p>
+
+<p align="center">
+  <img src="docs/media/demo-light.png" alt="Light theme table" width="360" />
+  &nbsp;
+  <img src="docs/media/demo-dark.png" alt="Dark theme table" width="360" />
+</p>
 
 ## Features
 
