@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.2
+
+- Slim publish footprint: drop `docs/` (demo media) from the npm tarball
+- Package size ~2.5 MB → ~22 KB; README previews still load from GitHub
+- No runtime API changes
+
 ## 0.1.1
 
 - Professional README landing (features table, API overview, docs index)
