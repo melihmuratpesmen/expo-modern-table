@@ -8,9 +8,9 @@ Track props, features, and half-finished structures removed or postponed during 
 | Item | Notes | Suggested later work |
 |------|-------|----------------------|
 | `stickyHeader` | Declared on `ModernTableProps`, never applied to header/list. | Pin header while body scrolls vertically (FlashList sticky header / absolute header). |
-| `enableGlobalSearch` | Declared; toolbar search already gated by `onSearchChange` presence. | Explicit flag to show/hide search independently of other toolbar controls. |
-| `isLoading` | Declared; no loading UI. | Overlay / skeleton / `ListEmptyComponent` loading state. |
-| `onSelectionChange` | Declared; selection used `onToggleOne` / `onToggleAll` only. | Optional bulk callback `(ids: RowId[]) => void` fired after each toggle, or replace toggle API. |
+| `enableGlobalSearch` | Declared; toolbar search already gated by `onSearchChange` presence. | Use `showSearch` (`0.2.0`) to show/hide independently. |
+| `isLoading` | Declared; no loading UI. | **Done in 0.2.0.** |
+| `onSelectionChange` | Declared; selection used `onToggleOne` / `onToggleAll` only. | **Done in 0.2.0.** |
 | `emptyMessage` | Replaced by `translations.empty`. | — (done via i18n) |
 
 ## Renamed (breaking in `0.x`)
@@ -36,13 +36,13 @@ Re-export later only if we want a headless / compose-your-own API.
 
 ### Sort header → direction
 Previously header always called `onSort(key, 'asc')`. Fixed in polish to cycle
-`null → asc → desc → null`. Still worth a dedicated unit test and optional
-`enableSortClear` / per-column `sortable` flag.
+`null → asc → desc → null`. Optional `enableSortClear` and per-column `sortable`
+shipped in `0.2.0`.
 
 ### Column order sync
-Internal `columnOrder` only resynced when `columns.length` changed. Polish adds
-optional controlled `columnOrder` prop. Still weak when keys change without length
-change — improve key-set diff sync.
+Internal `columnOrder` only resynced when `columns.length` changed. `0.2.0`
+diffs the key set (keeps existing order, appends new keys) in both `ModernTable`
+and `useTable`.
 
 ### `selectionMode` was props-ignored
 Props `selectionMode` / `onToggleSelectionMode` existed but ModernTable always used
@@ -51,18 +51,18 @@ internal state. Polish wires semi-controlled `selectionMode` + `onSelectionModeC
 ### Toolbar show condition
 Toolbar appears only when `onSearchChange && onDensityChange && onToggleColumn` are
 all set. Too all-or-nothing — later: `showToolbar?: boolean` or per-slot flags
-(`showSearch`, `showDensity`, `showColumnMenu`).
+(`showSearch`, `showDensity`, `showColumnMenu`). **Done in 0.2.0.**
 
 ### Pagination theming
 Chevron colors were hardcoded (`#ccc` / `#333`). Moved to theme tokens; pagination
-still has no `translations` for a11y labels (prev/next).
+still has no `translations` for a11y labels (prev/next). **Done in 0.2.0** (`previousPage` / `nextPage`).
 
 ### `useTable` gaps
 - No controlled mode for individual slices (always owns state).
 - `toggleAllSelection` scopes to **current page** only — document or add
-  `selectAllScope: 'page' | 'filtered'`.
-- No `columnOrder` state in `useTable` yet (table manages it).
-- No `getRowId` override — requires `T extends { id }`.
+  `selectAllScope: 'page' | 'filtered'`. **Done in 0.2.0.**
+- No `columnOrder` state in `useTable` yet (table manages it). **Done in 0.2.0.**
+- No `getRowId` override — requires `T extends { id }`. **Done in 0.2.0** (`getRowId` option; rows still typed with `id`).
 
 ### Filter modal
 Boolean filters historically mixed `true`/`false` with stringly values. Typed as
@@ -73,7 +73,7 @@ Left in MyExamy app (depends on `ExView` / `ExText`). Not part of this package.
 Consider a minimal unstyled `SimpleTable` later if needed.
 
 ### Loading / empty / error triad
-Only empty copy exists. Loading and error states were never started.
+Only empty copy exists. Loading and error states were never started. **Done in 0.2.0.**
 
 ### Server-side / remote data
 All filter/sort/paginate are client-side via `useTable`. Remote mode
@@ -81,6 +81,7 @@ All filter/sort/paginate are client-side via `useTable`. Remote mode
 
 ### Accessibility
 No `accessibilityLabel` / role wiring on sort headers, checkboxes, or toolbar actions.
+**Done in 0.2.0.**
 
 ### Fullscreen
 Depends on optional `expo-screen-orientation`. No bare-RN fallback beyond hiding the button.
@@ -108,3 +109,4 @@ Depends on optional `expo-screen-orientation`. No bare-RN fallback beyond hiding
 | Example Expo app (SDK 54) | `0.1.0` | Expo Go–compatible playground |
 | npm publish | `0.1.0` | https://www.npmjs.com/package/expo-modern-table |
 | Docs / media / README landing | `0.1.1` | Badges, previews, docs index synced to npm |
+| Loading / error / toolbar slots / a11y / tests | `0.2.0` | `isLoading`+`error`, independent toolbar, `useTable` options, Vitest + CI |

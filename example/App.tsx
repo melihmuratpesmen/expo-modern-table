@@ -41,6 +41,7 @@ const COLUMNS: Column<SubjectScore>[] = [
       type: 'select',
       options: ['verbal', 'social', 'science'],
     },
+    sortable: false,
   },
   { key: 'total', title: 'T', width: 70, align: 'right' },
   { key: 'correct', title: 'C', width: 70, align: 'right' },
@@ -69,7 +70,13 @@ const COLUMNS: Column<SubjectScore>[] = [
 export default function App() {
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [rows, setRows] = useState(DATA);
-  const table = useTable(rows, COLUMNS, 10);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const table = useTable(rows, COLUMNS, {
+    initialItemsPerPage: 10,
+    selectAllScope: 'page',
+    searchKeys: ['name', 'group'],
+  });
 
   return (
     <GestureHandlerRootView style={styles.root}>
@@ -95,6 +102,31 @@ export default function App() {
           </Pressable>
         </View>
 
+        <View style={styles.demoRow}>
+          <Pressable
+            onPress={() => {
+              setError(null);
+              setIsLoading(prev => !prev);
+            }}
+            style={[styles.chip, isLoading && styles.chipActive, theme === 'dark' && styles.chipDark]}
+          >
+            <Text style={[styles.chipText, theme === 'dark' && styles.textLight]}>
+              {isLoading ? 'Loading on' : 'Loading'}
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={() => {
+              setIsLoading(false);
+              setError(prev => (prev ? null : 'Could not load subjects'));
+            }}
+            style={[styles.chip, error && styles.chipActive, theme === 'dark' && styles.chipDark]}
+          >
+            <Text style={[styles.chipText, theme === 'dark' && styles.textLight]}>
+              {error ? 'Error on' : 'Error'}
+            </Text>
+          </Pressable>
+        </View>
+
         <View style={styles.tableWrap}>
           <ModernTable
             columns={COLUMNS}
@@ -103,6 +135,9 @@ export default function App() {
             enableRowReorder
             enableColumnReorder
             rowGroupKey="group"
+            isLoading={isLoading}
+            error={error}
+            onRetry={() => setError(null)}
             onRowChange={updated => {
               setRows(prev => prev.map(row => (row.id === updated.id ? updated : row)));
             }}
@@ -161,5 +196,27 @@ const styles = StyleSheet.create({
     borderColor: '#334155',
   },
   themeButtonText: { fontWeight: '600', color: '#111827' },
+  demoRow: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingBottom: 10,
+  },
+  chip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  chipDark: {
+    backgroundColor: '#1e293b',
+    borderColor: '#334155',
+  },
+  chipActive: {
+    borderColor: '#4f46e5',
+  },
+  chipText: { fontWeight: '600', color: '#111827', fontSize: 13 },
   tableWrap: { flex: 1, paddingHorizontal: 12, paddingBottom: 12 },
 });

@@ -5,10 +5,11 @@ import { Check, Minus } from "lucide-react-native";
 
 interface CheckboxProps {
   checked: boolean;
-  indeterminate?: boolean; // Tümü seçili değil ama bazıları seçiliyse (Tire işareti)
+  indeterminate?: boolean;
   onPress: () => void;
   activeColor?: string;
   borderColor?: string;
+  accessibilityLabel?: string;
 }
 
 export function Checkbox({
@@ -17,11 +18,17 @@ export function Checkbox({
   onPress,
   activeColor = "#4f46e5",
   borderColor = "#cbd5e1",
+  accessibilityLabel,
 }: CheckboxProps) {
   return (
     <TouchableOpacity
       activeOpacity={0.7}
       onPress={onPress}
+      accessibilityRole="checkbox"
+      accessibilityLabel={accessibilityLabel}
+      accessibilityState={{
+        checked: indeterminate ? "mixed" : checked,
+      }}
       style={[
         styles.container,
         checked || indeterminate

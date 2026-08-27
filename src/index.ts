@@ -12,13 +12,20 @@ export type {
   SortDirection,
   Density,
   SelectionMode,
+  SelectAllScope,
   FilterConfig,
   FilterValue,
   TableTranslations,
   Column,
   PaginationProps,
   ModernTableProps,
+  UseTableOptions,
 } from './types';
 export { DEFAULT_TRANSLATIONS } from './types';
 
 export { normalizeSearchText, includesSearch, matchesSearchFields } from './utils/search';
+export { nextSortDirection, compareTableValues, sortRows } from './utils/sort';
+export { applyFilters, matchesColumnFilter } from './utils/filter';
+export { processTableData, applySearch, paginateRows } from './utils/pipeline';
+export type { ProcessTableDataInput, ProcessTableDataResult } from './utils/pipeline';
+export { formatTranslation } from './utils/i18n';

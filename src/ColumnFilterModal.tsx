@@ -209,7 +209,11 @@ export function ColumnFilterModal({
             <Text style={styles.title}>
               {translations.filter} {columnTitle}
             </Text>
-            <TouchableOpacity onPress={onClose}>
+            <TouchableOpacity
+              onPress={onClose}
+              accessibilityRole="button"
+              accessibilityLabel={translations.close}
+            >
               <X size={20} color={tableTheme.textSecondary} />
             </TouchableOpacity>
           </View>
@@ -217,10 +221,20 @@ export function ColumnFilterModal({
           <View style={styles.body}>{renderFilterInput()}</View>
 
           <View style={styles.footer}>
-            <TouchableOpacity style={styles.clearButton} onPress={cleanFilter}>
+            <TouchableOpacity
+              style={styles.clearButton}
+              onPress={cleanFilter}
+              accessibilityRole="button"
+              accessibilityLabel={translations.clear}
+            >
               <Text style={styles.clearButtonText}>{translations.clear}</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.applyButton} onPress={handleApply}>
+            <TouchableOpacity
+              style={styles.applyButton}
+              onPress={handleApply}
+              accessibilityRole="button"
+              accessibilityLabel={translations.apply}
+            >
               <Text style={styles.applyButtonText}>{translations.apply}</Text>
             </TouchableOpacity>
           </View>

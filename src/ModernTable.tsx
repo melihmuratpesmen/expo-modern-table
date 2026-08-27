@@ -10,6 +10,7 @@ import {
   TextInput,
   useWindowDimensions,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { GestureDetector, ScrollView as GHScrollView } from 'react-native-gesture-handler';
 import { FlashList, ListRenderItemInfo } from '@shopify/flash-list';
@@ -26,9 +27,9 @@ import {
   ModernTableProps,
   Column,
   Density,
-  SortDirection,
   SelectionMode,
   TableRow,
+  RowId,
   DEFAULT_TRANSLATIONS,
 } from './types';
 import { TableToolbar } from './TableToolbar';
@@ -38,6 +39,10 @@ import { useTableTheme } from './hooks/useTableTheme';
 import { TableTheme } from './theme/tokens';
 import { DraggableHeader } from './DraggableHeader';
 import { DraggableRow } from './DraggableRow';
+import type { DraggableRowChildrenProps } from './DraggableRow';
+import { nextSortDirection } from './utils/sort';
+import { formatTranslation } from './utils/i18n';
+import { toggleSelectedId, toggleSelectedIds } from './utils/selection';
 
 const CHECKBOX_WIDTH = 50;
 
@@ -47,14 +52,20 @@ const ROW_HEIGHTS: Record<Density, number> = {
   comfortable: 64,
 };
 
-function nextSortDirection(
-  currentColumn: string | undefined,
-  currentDirection: SortDirection | undefined,
-  pressedKey: string
-): SortDirection {
-  if (currentColumn !== pressedKey || !currentDirection) return 'asc';
-  if (currentDirection === 'asc') return 'desc';
-  return null;
+type OffsetColumn<T> = Column<T> & {
+  offsetX: number;
+  stickyOffset: number;
+  isSticky?: boolean;
+};
+
+function resolveErrorMessage(
+  error: string | boolean | Error | null | undefined,
+  fallback: string
+): string | null {
+  if (error == null || error === false) return null;
+  if (typeof error === 'string') return error;
+  if (error instanceof Error) return error.message || fallback;
+  return fallback;
 }
 
 // Helper: Darken hex color by amount (0-100)
@@ -121,10 +132,25 @@ export function ModernTable<T extends TableRow>({
   onRowPress,
   selectionMode: selectionModeProp,
   onSelectionModeChange,
+  getRowId: getRowIdProp,
+  isLoading = false,
+  error,
+  onRetry,
+  showToolbar: showToolbarProp,
+  showSearch: showSearchProp,
+  showDensity: showDensityProp,
+  showColumnMenu: showColumnMenuProp,
+  enableSortClear = true,
+  isSomeSelected,
+  onSelectionChange,
 }: ModernTableProps<T>) {
   const tableTheme = useTableTheme(theme, themeConfig);
   const styles = useMemo(() => createStyles(tableTheme), [tableTheme]);
   const t = { ...DEFAULT_TRANSLATIONS, ...translations };
+  const resolveRowId = useCallback(
+    (item: T) => (getRowIdProp ? getRowIdProp(item) : item.id),
+    [getRowIdProp]
+  );
 
   const [internalColumnOrder, setInternalColumnOrder] = useState<string[]>(() =>
     columns.map(c => c.key as string)
@@ -230,9 +256,9 @@ export function ModernTable<T extends TableRow>({
   const listIdentityKey = `${sortColumn ?? 'nosort'}-${sortDirection ?? 'none'}-${columnOrder.join('|')}`;
 
   // --- EDIT LOGIC ---
-  const handleStartEdit = (item: T, key: string, value: any) => {
-    setEditingCell({ id: item.id, key });
-    setTempValue(String(value));
+  const handleStartEdit = (item: T, key: string, value: unknown) => {
+    setEditingCell({ id: resolveRowId(item), key });
+    setTempValue(String(value ?? ''));
   };
 
   const handleFinishEdit = (item: T, key: string) => {
@@ -243,8 +269,23 @@ export function ModernTable<T extends TableRow>({
     setEditingCell(null);
   };
 
+  const handleToggleRow = (id: RowId) => {
+    onToggleRow?.(id);
+    if (onSelectionChange && selectedIds) {
+      onSelectionChange(Array.from(toggleSelectedId(selectedIds, id)));
+    }
+  };
+
+  const handleToggleAll = () => {
+    onToggleAll?.();
+    if (onSelectionChange && selectedIds) {
+      const poolIds = data.map(item => resolveRowId(item));
+      onSelectionChange(Array.from(toggleSelectedIds(selectedIds, poolIds)));
+    }
+  };
+
   // --- STICKY STYLE GENERATOR ---
-  const getStickyStyle = (col: any, index: number, backgroundColor: string) => {
+  const getStickyStyle = (col: OffsetColumn<T>, index: number, backgroundColor: string) => {
     if (!col.isSticky) return {};
 
     const threshold = col.offsetX - col.stickyOffset;
@@ -289,7 +330,7 @@ export function ModernTable<T extends TableRow>({
     type: 'header' | 'row',
     item?: T,
     bgColor: string = tableTheme.background,
-    dragGesture?: any // Using any to avoid complex type import issues for now, or use ReturnType if imported
+    dragGesture?: DraggableRowChildrenProps['dragGesture']
   ) => {
     const isHeader = type === 'header';
 
@@ -359,19 +400,21 @@ export function ModernTable<T extends TableRow>({
         ]}
       >
         <Checkbox
-          checked={isHeader ? !!isAllSelected : item ? selectedIds?.has(item.id) || false : false}
-          onPress={() => (isHeader ? onToggleAll?.() : item && onToggleRow?.(item.id))}
+          checked={isHeader ? !!isAllSelected : item ? selectedIds?.has(resolveRowId(item)) || false : false}
+          indeterminate={isHeader ? !!isSomeSelected : false}
+          onPress={() => (isHeader ? handleToggleAll() : item && handleToggleRow(resolveRowId(item)))}
           activeColor={tableTheme.primary}
           borderColor={tableTheme.textSecondary}
+          accessibilityLabel={isHeader ? t.selectAll : t.selectRow}
         />
       </Animated.View>
     );
   };
 
   const renderHeaderCell = useCallback(
-    (col: Column<T> & { offsetX: number; isSticky?: boolean }, index: number) => {
+    (col: OffsetColumn<T>, index: number) => {
       const stickyStyle = getStickyStyle(col, index, tableTheme.headerBackground);
-      const isSortable = !!onSort;
+      const isSortable = !!onSort && col.sortable !== false;
       const isActiveSort = sortColumn === col.key;
       const isFiltered = filters && filters[col.key as string] !== undefined;
       const isSticky = col.isSticky || (stickyColumns && stickyColumns.includes(col.key as string));
@@ -390,7 +433,6 @@ export function ModernTable<T extends TableRow>({
                     : 'flex-start',
             },
             headerStyle,
-            headerStyle,
             (col.isMarked || col.markedColor) && {
               backgroundColor: col.markedColor
                 ? darkenHex(col.markedColor, 20) // Darken custom color for header
@@ -408,9 +450,12 @@ export function ModernTable<T extends TableRow>({
             onPress={() => {
               if (!isSortable || !onSort) return;
               const key = col.key as string;
-              onSort(key, nextSortDirection(sortColumn, sortDirection, key));
+              onSort(key, nextSortDirection(sortColumn, sortDirection, key, enableSortClear));
             }}
             disabled={!isSortable}
+            accessibilityRole="button"
+            accessibilityLabel={formatTranslation(t.sortColumn, { title: col.title })}
+            accessibilityState={{ selected: isActiveSort, disabled: !isSortable }}
           >
             <Text style={styles.headerText}>{col.title}</Text>
             {isActiveSort &&
@@ -425,6 +470,9 @@ export function ModernTable<T extends TableRow>({
             <TouchableOpacity
               style={[styles.filterIcon, isFiltered && styles.filterIconActive]}
               onPress={() => setActiveFilterColumn(col.key as string)}
+              accessibilityRole="button"
+              accessibilityLabel={formatTranslation(t.filterColumn, { title: col.title })}
+              accessibilityState={{ selected: !!isFiltered }}
             >
               <ListFilter
                 size={16}
@@ -487,20 +535,21 @@ export function ModernTable<T extends TableRow>({
       onSort,
       sortColumn,
       sortDirection,
+      enableSortClear,
       headerStyle,
       filters,
       activeFilterColumn,
       onFilterChange,
-      onFilterChange,
-      columnOrder, // Re-render if order changes
+      columnOrder,
       tableTheme,
-      enableColumnReorder, // Re-render if toggle changes
+      enableColumnReorder,
+      t,
     ]
   );
 
   const renderRow = ({ item, index }: ListRenderItemInfo<T>) => {
     const isEven = index % 2 === 0;
-    const isSelected = selectedIds?.has(item.id);
+    const isSelected = selectedIds?.has(resolveRowId(item));
     const rowBgColor = isSelected
       ? tableTheme.rowSelected
       : isEven
@@ -520,7 +569,7 @@ export function ModernTable<T extends TableRow>({
       isLastInGroup = currentGroup !== nextGroup;
     }
 
-    const renderRowContent = (dragGesture?: any) => {
+    const renderRowContent = (dragGesture?: DraggableRowChildrenProps['dragGesture']) => {
       const RowComponent = onRowPress ? TouchableOpacity : View;
       return (
         <RowComponent
@@ -547,7 +596,7 @@ export function ModernTable<T extends TableRow>({
 
           {columnsWithOffsets.map((col, colIndex) => {
             const stickyStyle = getStickyStyle(col, colIndex, rowBgColor);
-            const isEditing = editingCell?.id === item.id && editingCell?.key === col.key;
+            const isEditing = editingCell?.id === resolveRowId(item) && editingCell?.key === col.key;
 
             return (
               <Animated.View
@@ -615,7 +664,7 @@ export function ModernTable<T extends TableRow>({
     if (selectionMode === 'reorder') {
       return (
         <DraggableRow
-          key={String(item.id)}
+          key={String(resolveRowId(item))}
           index={index}
           rowHeight={currentRowHeight}
           theme={tableTheme}
@@ -633,19 +682,59 @@ export function ModernTable<T extends TableRow>({
     return renderRowContent();
   };
 
-  const showToolbar = !!(onSearchChange && onDensityChange && onToggleColumn);
+  const showSearch = showSearchProp ?? !!onSearchChange;
+  const showDensity = showDensityProp ?? !!onDensityChange;
+  const showColumnMenu = showColumnMenuProp ?? !!onToggleColumn;
+  const showToolbar =
+    showToolbarProp ??
+    (showSearch || showDensity || showColumnMenu || !!enableRowReorder);
+
+  const errorMessage = resolveErrorMessage(error, t.error);
+
+  const renderEmpty = () => {
+    if (errorMessage) {
+      return (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyText}>{errorMessage}</Text>
+          {onRetry ? (
+            <TouchableOpacity
+              onPress={onRetry}
+              style={styles.retryButton}
+              accessibilityRole="button"
+              accessibilityLabel={t.retry}
+            >
+              <Text style={styles.retryText}>{t.retry}</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      );
+    }
+    if (isLoading) {
+      return (
+        <View style={styles.emptyContainer}>
+          <ActivityIndicator color={tableTheme.primary} />
+          <Text style={styles.emptyText}>{t.loading}</Text>
+        </View>
+      );
+    }
+    return (
+      <View style={styles.emptyContainer}>
+        <Text style={styles.emptyText}>{t.empty}</Text>
+      </View>
+    );
+  };
 
   return (
     <View style={[styles.container, containerStyle]}>
       {showToolbar && (
         <TableToolbar
           searchQuery={searchQuery || ''}
-          onSearchChange={onSearchChange!}
+          onSearchChange={onSearchChange}
           density={density}
-          onDensityChange={onDensityChange!}
+          onDensityChange={onDensityChange}
           columns={columns}
           visibleColumns={visibleColumns || []}
-          onToggleColumn={onToggleColumn!}
+          onToggleColumn={onToggleColumn}
           stickyColumns={stickyColumns}
           onToggleSticky={onToggleSticky}
           theme={tableTheme}
@@ -654,6 +743,9 @@ export function ModernTable<T extends TableRow>({
           onToggleSelectionMode={toggleSelectionMode}
           selectedCount={selectedIds?.size || 0}
           translations={t}
+          showSearch={showSearch}
+          showDensity={showDensity}
+          showColumnMenu={showColumnMenu}
         />
       )}
 
@@ -686,19 +778,35 @@ export function ModernTable<T extends TableRow>({
                 <FlashList
                   key={Platform.OS === 'ios' ? listIdentityKey : undefined}
                   data={data}
-                  extraData={[SCREEN_WIDTH, selectedIds, editingCell, sortColumn, sortDirection]}
+                  extraData={[
+                    SCREEN_WIDTH,
+                    selectedIds,
+                    editingCell,
+                    sortColumn,
+                    sortDirection,
+                    isLoading,
+                    errorMessage,
+                  ]}
                   renderItem={renderRow}
-                  keyExtractor={item => String(item.id)}
+                  keyExtractor={item => String(resolveRowId(item))}
                   contentContainerStyle={styles.listContent}
                   // @ts-ignore: estimatedItemSize missing in types
                   estimatedItemSize={currentRowHeight}
                   scrollEnabled={scrollEnabled}
-                  ListEmptyComponent={
-                    <View style={styles.emptyContainer}>
-                      <Text style={styles.emptyText}>{t.empty}</Text>
-                    </View>
-                  }
+                  ListEmptyComponent={renderEmpty}
                 />
+                {isLoading && data.length > 0 ? (
+                  <View style={styles.loadingOverlay} pointerEvents="none">
+                    <View
+                      style={[
+                        StyleSheet.absoluteFill,
+                        { backgroundColor: tableTheme.background, opacity: 0.72 },
+                      ]}
+                    />
+                    <ActivityIndicator color={tableTheme.primary} />
+                    <Text style={styles.loadingOverlayText}>{t.loading}</Text>
+                  </View>
+                ) : null}
               </View>
             </View>
           </View>
@@ -746,6 +854,9 @@ export function ModernTable<T extends TableRow>({
                 disabled={pagination.currentPage === 1}
                 onPress={() => pagination.onPageChange(pagination.currentPage - 1)}
                 style={[styles.pageButton, pagination.currentPage === 1 && styles.disabledButton]}
+                accessibilityRole="button"
+                accessibilityLabel={t.previousPage}
+                accessibilityState={{ disabled: pagination.currentPage === 1 }}
               >
                 <ChevronLeft
                   size={20}
@@ -761,6 +872,9 @@ export function ModernTable<T extends TableRow>({
                   styles.pageButton,
                   pagination.currentPage === pagination.totalPages && styles.disabledButton,
                 ]}
+                accessibilityRole="button"
+                accessibilityLabel={t.nextPage}
+                accessibilityState={{ disabled: pagination.currentPage === pagination.totalPages }}
               >
                 <ChevronRight
                   size={20}
@@ -895,6 +1009,29 @@ function createStyles(theme: TableTheme) {
       color: theme.textSecondary,
       fontSize: 16,
       marginTop: 12,
+    },
+    retryButton: {
+      marginTop: 16,
+      paddingHorizontal: 20,
+      paddingVertical: 10,
+      borderRadius: 10,
+      backgroundColor: theme.primary,
+    },
+    retryText: {
+      color: theme.textInverse,
+      fontFamily: theme.fontFamily.semibold,
+      fontSize: 14,
+    },
+    loadingOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+    },
+    loadingOverlayText: {
+      color: theme.textSecondary,
+      fontSize: 13,
+      fontFamily: theme.fontFamily.medium,
     },
     paginationContainer: {
       flexDirection: 'row',

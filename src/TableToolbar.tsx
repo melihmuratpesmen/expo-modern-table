@@ -38,28 +38,30 @@ try {
 }
 
 interface TableToolbarProps<T> {
-  searchQuery: string;
-  onSearchChange: (text: string) => void;
-  density: Density;
-  onDensityChange: (d: Density) => void;
+  searchQuery?: string;
+  onSearchChange?: (text: string) => void;
+  density?: Density;
+  onDensityChange?: (d: Density) => void;
   columns: Column<T>[];
   visibleColumns: string[];
-  onToggleColumn: (key: string) => void;
+  onToggleColumn?: (key: string) => void;
   stickyColumns?: string[];
   onToggleSticky?: (key: string) => void;
   theme: TableTheme;
-  // Row Drag Mode
   enableRowReorder?: boolean;
   selectionMode?: "select" | "reorder";
   onToggleSelectionMode?: () => void;
   selectedCount?: number;
   translations: TableTranslations;
+  showSearch?: boolean;
+  showDensity?: boolean;
+  showColumnMenu?: boolean;
 }
 
 export function TableToolbar<T>({
-  searchQuery,
+  searchQuery = '',
   onSearchChange,
-  density,
+  density = "standard",
   onDensityChange,
   columns,
   visibleColumns,
@@ -72,6 +74,9 @@ export function TableToolbar<T>({
   onToggleSelectionMode,
   selectedCount = 0,
   translations,
+  showSearch = true,
+  showDensity = true,
+  showColumnMenu = true,
 }: TableToolbarProps<T>) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -80,6 +85,7 @@ export function TableToolbar<T>({
 
   // Density cycle: compact -> standard -> comfortable -> compact
   const cycleDensity = () => {
+    if (!onDensityChange) return;
     const next: Record<Density, Density> = {
       compact: "standard",
       standard: "comfortable",
@@ -105,30 +111,41 @@ export function TableToolbar<T>({
   return (
     <View style={styles.container}>
       {/* SEARCH BAR */}
-      <View style={styles.searchContainer}>
-        {selectedCount > 0 ? (
-          <View style={styles.selectionBadge}>
-            <Text style={styles.selectionText}>{selectedCount}</Text>
-          </View>
-        ) : (
-          <Search
-            size={20}
-            color={theme.textSecondary}
-            style={styles.searchIcon}
+      {showSearch && onSearchChange ? (
+        <View style={styles.searchContainer}>
+          {selectedCount > 0 ? (
+            <View style={styles.selectionBadge}>
+              <Text style={styles.selectionText}>{selectedCount}</Text>
+            </View>
+          ) : (
+            <Search
+              size={20}
+              color={theme.textSecondary}
+              style={styles.searchIcon}
+            />
+          )}
+          <TextInput
+            style={styles.input}
+            placeholder={
+              selectedCount > 0
+                ? translations.selected
+                : translations.searchPlaceholder
+            }
+            placeholderTextColor={theme.textSecondary}
+            value={searchQuery}
+            onChangeText={onSearchChange}
+            accessibilityLabel={translations.searchPlaceholder}
           />
-        )}
-        <TextInput
-          style={styles.input}
-          placeholder={
-            selectedCount > 0
-              ? translations.selected
-              : translations.searchPlaceholder
-          }
-          placeholderTextColor={theme.textSecondary}
-          value={searchQuery}
-          onChangeText={onSearchChange}
-        />
-      </View>
+        </View>
+      ) : (
+        <View style={styles.searchSpacer}>
+          {selectedCount > 0 ? (
+            <View style={styles.selectionBadge}>
+              <Text style={styles.selectionText}>{selectedCount}</Text>
+            </View>
+          ) : null}
+        </View>
+      )}
 
       {/* ACTION BUTTONS */}
       <View style={styles.actions}>
@@ -138,6 +155,12 @@ export function TableToolbar<T>({
             onPress={toggleFullscreen}
             style={styles.iconButton}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={
+              isFullscreen
+                ? translations.exitFullscreen
+                : translations.enterFullscreen
+            }
           >
             {isFullscreen ? (
               <Minimize2 size={20} color={theme.text} />
@@ -156,6 +179,12 @@ export function TableToolbar<T>({
               selectionMode === "reorder" && styles.activeModeButton,
             ]}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={
+              selectionMode === "select"
+                ? translations.reorderRows
+                : translations.selectRows
+            }
           >
             {selectionMode === "select" ? (
               <ListChecks size={20} color={theme.text} />
@@ -166,22 +195,30 @@ export function TableToolbar<T>({
         )}
 
         {/* Density Toggle */}
-        <TouchableOpacity
-          onPress={cycleDensity}
-          style={styles.iconButton}
-          activeOpacity={0.7}
-        >
-          <Scaling size={20} color={theme.text} />
-        </TouchableOpacity>
+        {showDensity && onDensityChange ? (
+          <TouchableOpacity
+            onPress={cycleDensity}
+            style={styles.iconButton}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={translations.changeDensity}
+          >
+            <Scaling size={20} color={theme.text} />
+          </TouchableOpacity>
+        ) : null}
 
         {/* Column Visibility Toggle */}
-        <TouchableOpacity
-          onPress={() => setIsMenuOpen(true)}
-          style={styles.iconButton}
-          activeOpacity={0.7}
-        >
-          <Eye size={20} color={theme.text} />
-        </TouchableOpacity>
+        {showColumnMenu && onToggleColumn ? (
+          <TouchableOpacity
+            onPress={() => setIsMenuOpen(true)}
+            style={styles.iconButton}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={translations.manageColumns}
+          >
+            <Eye size={20} color={theme.text} />
+          </TouchableOpacity>
+        ) : null}
       </View>
 
       {/* COLUMN VISIBILITY MODAL */}
@@ -196,7 +233,11 @@ export function TableToolbar<T>({
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>{translations.columns}</Text>
-              <TouchableOpacity onPress={() => setIsMenuOpen(false)}>
+              <TouchableOpacity
+                onPress={() => setIsMenuOpen(false)}
+                accessibilityRole="button"
+                accessibilityLabel={translations.close}
+              >
                 <X size={24} color={theme.text} />
               </TouchableOpacity>
             </View>
@@ -215,6 +256,12 @@ export function TableToolbar<T>({
                           stickyColumns?.includes(col.key as string) &&
                             styles.pinActive,
                         ]}
+                        accessibilityRole="button"
+                        accessibilityLabel={
+                          stickyColumns?.includes(col.key as string)
+                            ? translations.unpinColumn
+                            : translations.pinColumn
+                        }
                       >
                         <Pin
                           size={18}
@@ -229,7 +276,7 @@ export function TableToolbar<T>({
 
                     <Switch
                       value={visibleColumns.includes(col.key as string)}
-                      onValueChange={() => onToggleColumn(col.key as string)}
+                      onValueChange={() => onToggleColumn?.(col.key as string)}
                       trackColor={{
                         false: theme.border,
                         true: theme.primaryLight,
@@ -260,6 +307,11 @@ const createStyles = (theme: TableTheme) =>
       borderBottomColor: theme.border,
       backgroundColor: theme.background,
       gap: 12,
+      alignItems: "center",
+    },
+    searchSpacer: {
+      flex: 1,
+      flexDirection: "row",
       alignItems: "center",
     },
     searchContainer: {

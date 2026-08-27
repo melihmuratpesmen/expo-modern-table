@@ -19,6 +19,6 @@
       "expo-modern-table": ["./src/index.ts"]
     }
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "tests/**/*"],
   "exclude": ["node_modules", "example", "lib"]
 }

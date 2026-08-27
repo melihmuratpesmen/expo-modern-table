@@ -14,15 +14,15 @@ Guides and reference for `expo-modern-table`. Start here, then jump to the piece
 ## Mental model
 
 ```text
-useTable(data, columns)
-   │  owns: search · sort · filter · selection · density · columns · pagination
+useTable(data, columns, options?)
+   │  owns: search · sort · filter · selection · density · columns · order · pagination
    ▼
 getTableProps()
    │
    ▼
 <ModernTable columns={columns} {...props} />
-   │  owns: edit UI · filter modal
-   │  semi-owns: selectionMode · columnOrder (unless controlled)
+   │  owns: edit UI · filter modal · loading/error presentation
+   │  semi-owns: selectionMode (unless controlled)
 ```
 
 ## When to add a docs site

@@ -61,6 +61,7 @@ npm run ios
 - `useTable` + `getTableProps()`
 - Search, sort, filters, pagination, selection
 - Column / row reorder, inline edit, light/dark, grouping
+- Loading / error playground toggles
 
 ## Dev notes
 

@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.2.0
+
+Quality pass: production states, independent toolbar, accessibility, testable pipeline.
+
+- **Loading / error** — `isLoading`, `error`, `onRetry` empty and overlay states
+- **Toolbar slots** — `showToolbar`, `showSearch`, `showDensity`, `showColumnMenu` (no longer all-or-nothing)
+- **Accessibility** — labels/roles on sort, filter, selection, toolbar, pagination
+- **`useTable` options** — 3rd arg can be a number (as before) or `{ getRowId, selectAllScope, searchKeys, columnOrder, enableSelection, initialSort, … }`
+- **Selection** — `selectAllScope: 'page' | 'filtered'`, indeterminate checkbox, `onSelectionChange`, `clearSelection`
+- **Columns** — `sortable: false`, `enableSortClear`, `columnOrder` owned by `useTable`
+- **Headless pipeline** — `processTableData`, `nextSortDirection`, `applyFilters` exported and unit-tested
+- **CI** — `npm test` (Vitest) + GitHub Actions typecheck/test
+
 ## 0.1.2
 
 - Slim publish footprint: drop `docs/` (demo media) from the npm tarball

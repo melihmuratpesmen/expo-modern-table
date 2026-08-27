@@ -1,6 +1,6 @@
 {
   "name": "expo-modern-table",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "A modern, feature-rich data table for Expo and React Native — sorting, filtering, sticky columns, row/column reorder, theming, and more.",
   "main": "src/index.ts",
   "types": "src/index.ts",
@@ -14,7 +14,9 @@
   ],
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "lint": "echo \"No linter configured yet\"",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "npm run typecheck",
     "example": "npm --prefix example start",
     "example:go": "npm --prefix example run start:go -- --port 8082",
     "example:tunnel": "npm --prefix example run tunnel",
@@ -59,14 +61,19 @@
   },
   "devDependencies": {
     "@shopify/flash-list": "^2.0.2",
+    "@testing-library/react": "^16.3.0",
     "@types/react": "~19.1.0",
+    "@types/react-dom": "~19.1.0",
+    "jsdom": "^26.1.0",
     "lucide-react-native": "^0.556.0",
     "react": "19.1.0",
+    "react-dom": "19.1.0",
     "react-native": "0.81.5",
     "react-native-gesture-handler": "~2.28.0",
     "react-native-reanimated": "~4.1.1",
     "react-native-svg": "15.12.0",
-    "typescript": "~5.9.2"
+    "typescript": "~5.9.2",
+    "vitest": "^3.2.4"
   },
   "overrides": {
     "react-native-svg": "15.12.0"

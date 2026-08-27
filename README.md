@@ -53,12 +53,14 @@ Works with **Expo** and **bare React Native**. Optional `expo-screen-orientation
 |------|----------------|
 | **Layout** | Horizontal scroll, sticky columns, sticky selection column, row grouping styles |
 | **Data ops** | Sort (`asc` → `desc` → clear), global search, column filters (text / select / boolean / range) |
-| **Selection** | Single-row toggle, select-all on page, selection count in toolbar |
-| **Columns** | Show/hide, pin/unpin sticky, drag reorder |
+| **Selection** | Single-row toggle, select-all (`page` or `filtered`), indeterminate checkbox, `onSelectionChange` |
+| **Columns** | Show/hide, pin/unpin sticky, drag reorder, per-column `sortable` |
 | **Rows** | Drag reorder, inline cell edit, `onRowPress` |
-| **UX** | Density (`compact` / `standard` / `comfortable`), pagination UI, empty state |
+| **UX** | Density (`compact` / `standard` / `comfortable`), pagination UI, empty / loading / error states |
+| **Toolbar** | Independent slots: search, density, columns, reorder (no longer all-or-nothing) |
 | **Design** | Light / dark themes, `themeConfig` overrides, custom `fontFamily` |
-| **i18n** | Full `translations` map (search, filter, pagination, empty, …) |
+| **i18n** | Full `translations` map (search, filter, pagination, empty, loading, a11y, …) |
+| **A11y** | Roles + labels on sort, filter, selection, toolbar, pagination |
 | **Perf** | FlashList recycling + iOS sort remount safeguards |
 
 ---
@@ -110,7 +112,7 @@ const columns: Column<Row>[] = [
 ];
 
 export function ScoresTable({ data }: { data: Row[] }) {
-  const table = useTable(data, columns, 20);
+  const table = useTable(data, columns, { initialItemsPerPage: 20 });
 
   return <ModernTable columns={columns} {...table.getTableProps()} />;
 }
@@ -120,9 +122,21 @@ export function ScoresTable({ data }: { data: Row[] }) {
 
 | Concern | Owner |
 |---------|--------|
-| Search, sort, filters, selection, density, visible/sticky columns, pagination | `useTable` (or your own controlled props) |
-| `selectionMode`, `columnOrder` | Semi-controlled — pass props to control, otherwise internal |
+| Search, sort, filters, selection, density, visible/sticky columns, column order, pagination | `useTable` (or your own controlled props) |
+| `selectionMode` | Semi-controlled — pass props to control, otherwise internal |
 | Cell editing, open filter modal | Always internal to `ModernTable` |
+
+`useTable(data, columns, 20)` still works; the 3rd argument may also be an options object:
+
+```ts
+const table = useTable(data, columns, {
+  initialItemsPerPage: 20,
+  getRowId: row => row.id,
+  selectAllScope: 'filtered', // or 'page' (default)
+  searchKeys: ['name', 'score'],
+  enableSelection: true,
+});
+```
 
 ---
 
@@ -136,7 +150,8 @@ export function ScoresTable({ data }: { data: Row[] }) {
 | `useTable` | State + `getTableProps()` |
 | `useTableTheme` | Resolve light/dark + overrides |
 | `lightTheme` / `darkTheme` / `defaultFontFamily` | Theme tokens |
-| `Column`, `ModernTableProps`, `FilterConfig`, … | Types |
+| `Column`, `ModernTableProps`, `UseTableOptions`, `FilterConfig`, … | Types |
+| `processTableData` / `nextSortDirection` / `applyFilters` | Headless data pipeline |
 | `normalizeSearchText` / `includesSearch` | Search helpers |
 
 Toolbar, drag handles, checkbox, and filter modal are **internal** (not part of the stable public surface).
@@ -151,6 +166,7 @@ type Column<T> = {
   align?: 'left' | 'center' | 'right';
   isSticky?: boolean;
   hidden?: boolean;
+  sortable?: boolean;
   editable?: boolean;
   renderCell?: (item: T, index: number) => React.ReactNode;
   filterConfig?: {
@@ -158,6 +174,19 @@ type Column<T> = {
     options?: string[];
   };
 };
+```
+
+Loading and error are presentational — pass them next to `getTableProps()`:
+
+```tsx
+<ModernTable
+  columns={columns}
+  {...table.getTableProps()}
+  isLoading={isFetching}
+  error={loadError}
+  onRetry={refetch}
+  showDensity={false}
+/>
 ```
 
 Deeper notes: [`docs/README.md`](./docs/README.md) · deferred / removed props: [`docs/DEFERRED.md`](./docs/DEFERRED.md)
@@ -222,9 +251,10 @@ A dedicated docs site (Docusaurus / Nextra) is **not** required for `0.1.x`. Whe
 
 | | |
 |--|--|
-| npm | [`expo-modern-table@0.1.1`](https://www.npmjs.com/package/expo-modern-table) |
+| npm | [`expo-modern-table@0.2.0`](https://www.npmjs.com/package/expo-modern-table) |
 | Stability | Early `0.x` — prefer additive changes; breaking changes possible before `1.0` |
 | Example | Expo Go **SDK 54** (current App Store Expo Go) |
+| Checks | `npm run typecheck` · `npm test` |
 
 ---
 

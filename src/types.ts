@@ -1,6 +1,6 @@
-import { ReactNode } from 'react';
-import { StyleProp, ViewStyle } from 'react-native';
-import { TableTheme } from './theme/tokens';
+import type { ReactNode } from 'react';
+import type { StyleProp, ViewStyle } from 'react-native';
+import type { TableTheme } from './theme/tokens';
 
 export type RowId = string | number;
 export type TableRow = { id: RowId };
@@ -8,6 +8,7 @@ export type TableRow = { id: RowId };
 export type SortDirection = 'asc' | 'desc' | null;
 export type Density = 'compact' | 'standard' | 'comfortable';
 export type SelectionMode = 'select' | 'reorder';
+export type SelectAllScope = 'page' | 'filtered';
 
 export interface FilterConfig {
   type: 'text' | 'select' | 'boolean' | 'number-range';
@@ -36,6 +37,24 @@ export interface TableTranslations {
   show: string;
   page: string;
   empty: string;
+  loading: string;
+  error: string;
+  retry: string;
+  previousPage: string;
+  nextPage: string;
+  selectAll: string;
+  selectRow: string;
+  sortColumn: string;
+  filterColumn: string;
+  changeDensity: string;
+  manageColumns: string;
+  enterFullscreen: string;
+  exitFullscreen: string;
+  reorderRows: string;
+  selectRows: string;
+  close: string;
+  pinColumn: string;
+  unpinColumn: string;
 }
 
 export const DEFAULT_TRANSLATIONS: TableTranslations = {
@@ -54,6 +73,24 @@ export const DEFAULT_TRANSLATIONS: TableTranslations = {
   show: 'Show:',
   page: 'Page',
   empty: 'No data found.',
+  loading: 'Loading…',
+  error: 'Something went wrong.',
+  retry: 'Retry',
+  previousPage: 'Previous page',
+  nextPage: 'Next page',
+  selectAll: 'Select all',
+  selectRow: 'Select row',
+  sortColumn: 'Sort {title}',
+  filterColumn: 'Filter {title}',
+  changeDensity: 'Change row density',
+  manageColumns: 'Show or hide columns',
+  enterFullscreen: 'Enter fullscreen',
+  exitFullscreen: 'Exit fullscreen',
+  reorderRows: 'Reorder rows',
+  selectRows: 'Select rows',
+  close: 'Close',
+  pinColumn: 'Pin column',
+  unpinColumn: 'Unpin column',
 };
 
 export interface Column<T> {
@@ -65,6 +102,8 @@ export interface Column<T> {
   renderCell?: (item: T, index: number) => ReactNode;
   editable?: boolean;
   hidden?: boolean;
+  /** When `false`, the header is not clickable for sort. Default: `true` if `onSort` is set. */
+  sortable?: boolean;
 
   isMarked?: boolean;
   markedColor?: string;
@@ -97,8 +136,14 @@ export interface ModernTableProps<T extends TableRow> {
   enableSelection?: boolean;
   selectedIds?: Set<RowId>;
   isAllSelected?: boolean;
+  /** True when some, but not all, rows in the current select-all scope are selected. */
+  isSomeSelected?: boolean;
   onToggleAll?: () => void;
   onToggleRow?: (id: RowId) => void;
+  /** Fired after a toggle with the predicted next selected ids (does not require `useTable`). */
+  onSelectionChange?: (ids: RowId[]) => void;
+  /** Override row identity. Defaults to `item.id`. */
+  getRowId?: (item: T) => RowId;
 
   // Search
   searchQuery?: string;
@@ -108,6 +153,8 @@ export interface ModernTableProps<T extends TableRow> {
   onSort?: (columnKey: string, direction: SortDirection) => void;
   sortColumn?: string;
   sortDirection?: SortDirection;
+  /** When `false`, cycling sort skips the cleared (`null`) state. Default: `true`. */
+  enableSortClear?: boolean;
 
   // Pagination
   pagination?: PaginationProps;
@@ -155,4 +202,32 @@ export interface ModernTableProps<T extends TableRow> {
 
   scrollEnabled?: boolean;
   onRowPress?: (item: T) => void;
+
+  // Loading / error
+  isLoading?: boolean;
+  error?: string | boolean | Error | null;
+  onRetry?: () => void;
+
+  // Toolbar slots (independent — any subset can show)
+  /** Force toolbar on/off. Default: shown when any slot has a handler. */
+  showToolbar?: boolean;
+  showSearch?: boolean;
+  showDensity?: boolean;
+  showColumnMenu?: boolean;
+}
+
+/**
+ * Optional 3rd argument to `useTable`. A number is still accepted as `initialItemsPerPage`.
+ */
+export interface UseTableOptions<T extends TableRow> {
+  initialItemsPerPage?: number;
+  itemsPerPageOptions?: number[];
+  getRowId?: (item: T) => RowId;
+  selectAllScope?: SelectAllScope;
+  enableSelection?: boolean;
+  searchKeys?: Array<Extract<keyof T, string> | string>;
+  initialSort?: { key: string; direction: SortDirection };
+  initialDensity?: Density;
+  initialFilters?: Record<string, FilterValue>;
+  onSelectionChange?: (ids: RowId[]) => void;
 }

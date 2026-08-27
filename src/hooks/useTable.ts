@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import {
   SortDirection,
   Column,
@@ -7,42 +7,70 @@ import {
   RowId,
   TableRow,
   ModernTableProps,
+  UseTableOptions,
 } from '../types';
-import { includesSearch, normalizeSearchText } from '../utils/search';
+import { processTableData } from '../utils/pipeline';
+import { nextSortDirection } from '../utils/sort';
+import { toggleSelectedId, toggleSelectedIds, isEveryIdSelected, isSomeIdSelected } from '../utils/selection';
 
-function cycleSortDirection(
-  currentKey: string,
-  currentDirection: SortDirection,
-  nextKey: string
-): SortDirection {
-  if (currentKey !== nextKey || currentDirection === null) return 'asc';
-  if (currentDirection === 'asc') return 'desc';
-  return null;
+function resolveOptions<T extends TableRow>(
+  options?: number | UseTableOptions<T>
+): UseTableOptions<T> {
+  if (typeof options === 'number') return { initialItemsPerPage: options };
+  return options ?? {};
 }
+
+const DEFAULT_PAGE_OPTIONS = [10, 20, 50];
 
 export function useTable<T extends TableRow>(
   data: T[],
   columns: Column<T>[],
-  initialItemsPerPage: number = 10
+  options?: number | UseTableOptions<T>
 ) {
+  const opts = resolveOptions(options);
+  const initialItemsPerPage = opts.initialItemsPerPage ?? 10;
+  const itemsPerPageOptions = opts.itemsPerPageOptions ?? DEFAULT_PAGE_OPTIONS;
+  const getRowId = useCallback(
+    (row: T) => (opts.getRowId ? opts.getRowId(row) : row.id),
+    [opts.getRowId]
+  );
+  const selectAllScope = opts.selectAllScope ?? 'page';
+  const enableSelection = opts.enableSelection ?? true;
+  const searchKeys = opts.searchKeys as string[] | undefined;
+
+  const onSelectionChangeRef = useRef(opts.onSelectionChange);
+  onSelectionChangeRef.current = opts.onSelectionChange;
+
+  const notifySelection = useCallback((next: Set<RowId>) => {
+    onSelectionChangeRef.current?.(Array.from(next));
+  }, []);
+
   const [itemsPerPage, setItemsPerPage] = useState(initialItemsPerPage);
   const [currentPage, setCurrentPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<RowId>>(new Set());
-  const [filters, setFilters] = useState<Record<string, FilterValue>>({});
-  const [density, setDensity] = useState<Density>('standard');
+  const [filters, setFilters] = useState<Record<string, FilterValue>>(
+    () => opts.initialFilters ?? {}
+  );
+  const [density, setDensity] = useState<Density>(opts.initialDensity ?? 'standard');
   const [visibleColumns, setVisibleColumns] = useState<string[]>(() =>
     columns.filter(c => !c.hidden).map(c => c.key as string)
   );
   const [stickyColumns, setStickyColumns] = useState<string[]>(() =>
     columns.filter(c => c.isSticky).map(c => c.key as string)
   );
+  const [columnOrder, setColumnOrder] = useState<string[]>(() =>
+    columns.map(c => c.key as string)
+  );
   const [sortConfig, setSortConfig] = useState<{
     key: string;
     direction: SortDirection;
-  }>({ key: '', direction: null });
+  }>(() => ({
+    key: opts.initialSort?.key ?? '',
+    direction: opts.initialSort?.direction ?? null,
+  }));
 
-  // Keep visibility / sticky in sync when column keys change
+  // Keep visibility / sticky / order in sync when column keys change
   useEffect(() => {
     const keys = columns.map(c => c.key as string);
     const keySet = new Set(keys);
@@ -70,84 +98,35 @@ export function useTable<T extends TableRow>(
       }
       return next;
     });
+
+    setColumnOrder(prev => {
+      const kept = prev.filter(k => keySet.has(k));
+      const added = keys.filter(k => !kept.includes(k));
+      const next = [...kept, ...added];
+      if (next.length === prev.length && next.every((k, i) => k === prev[i])) {
+        return prev;
+      }
+      return next;
+    });
   }, [columns]);
 
-  const filteredData = useMemo(() => {
-    let result = data;
+  const processed = useMemo(
+    () =>
+      processTableData({
+        data,
+        columns,
+        searchQuery,
+        searchKeys,
+        filters,
+        sortKey: sortConfig.key,
+        sortDirection: sortConfig.direction,
+        currentPage,
+        itemsPerPage,
+      }),
+    [data, columns, searchQuery, searchKeys, filters, sortConfig, currentPage, itemsPerPage]
+  );
 
-    if (searchQuery) {
-      const normalizedQuery = normalizeSearchText(searchQuery);
-      result = result.filter(item =>
-        Object.values(item).some(val => includesSearch(String(val), normalizedQuery))
-      );
-    }
-
-    if (Object.keys(filters).length > 0) {
-      result = result.filter(item =>
-        Object.entries(filters).every(([key, filterValue]) => {
-          if (filterValue === undefined || filterValue === '') return true;
-
-          const itemValue = item[key as keyof T];
-          const colConfig = columns.find(c => c.key === key)?.filterConfig;
-
-          switch (colConfig?.type) {
-            case 'text':
-              return includesSearch(String(itemValue), String(filterValue));
-            case 'select':
-              return itemValue === filterValue;
-            case 'boolean':
-              return Boolean(itemValue) === (filterValue === true || filterValue === 'true');
-            case 'number-range': {
-              const range = filterValue as { min?: number; max?: number };
-              const numVal = Number(itemValue);
-              if (range.min !== undefined && numVal < range.min) return false;
-              if (range.max !== undefined && numVal > range.max) return false;
-              return true;
-            }
-            default:
-              return true;
-          }
-        })
-      );
-    }
-
-    return result;
-  }, [data, searchQuery, filters, columns]);
-
-  const sortedData = useMemo(() => {
-    const sortableItems = [...filteredData];
-
-    if (sortConfig.direction !== null && sortConfig.key) {
-      const key = sortConfig.key as keyof T;
-      sortableItems.sort((a, b) => {
-        const aValue = a[key];
-        const bValue = b[key];
-        const isNum = !isNaN(Number(aValue)) && !isNaN(Number(bValue));
-
-        if (isNum) {
-          const numA = Number(aValue);
-          const numB = Number(bValue);
-          if (numA < numB) return sortConfig.direction === 'asc' ? -1 : 1;
-          if (numA > numB) return sortConfig.direction === 'asc' ? 1 : -1;
-          return 0;
-        }
-
-        if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
-        if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
-        return 0;
-      });
-    }
-
-    return sortableItems;
-  }, [filteredData, sortConfig]);
-
-  const totalPages = Math.max(1, Math.ceil(filteredData.length / itemsPerPage) || 1);
-
-  const paginatedData = useMemo(() => {
-    if (filteredData.length === 0) return [];
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    return sortedData.slice(startIndex, startIndex + itemsPerPage);
-  }, [sortedData, currentPage, itemsPerPage, filteredData.length]);
+  const { filteredData, sortedData, paginatedData, totalPages } = processed;
 
   useEffect(() => {
     setCurrentPage(1);
@@ -159,20 +138,18 @@ export function useTable<T extends TableRow>(
     }
   }, [currentPage, totalPages]);
 
-  const handleSort = useCallback(
-    (key: string, direction?: SortDirection) => {
+  const handleSort = useCallback((key: string, direction?: SortDirection) => {
+    setSortConfig(prev => {
       const nextDirection =
         direction !== undefined
           ? direction
-          : cycleSortDirection(sortConfig.key, sortConfig.direction, key);
-
-      setSortConfig({
+          : nextSortDirection(prev.key, prev.direction, key);
+      return {
         key: nextDirection === null ? '' : key,
         direction: nextDirection,
-      });
-    },
-    [sortConfig.key, sortConfig.direction]
-  );
+      };
+    });
+  }, []);
 
   const setColumnFilter = useCallback((key: string, value: FilterValue) => {
     setFilters(prev => {
@@ -186,23 +163,40 @@ export function useTable<T extends TableRow>(
     });
   }, []);
 
-  const toggleSelection = useCallback((id: RowId) => {
-    setSelectedIds(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }, []);
+  const toggleSelection = useCallback(
+    (id: RowId) => {
+      setSelectedIds(prev => {
+        const next = toggleSelectedId(prev, id);
+        notifySelection(next);
+        return next;
+      });
+    },
+    [notifySelection]
+  );
+
+  const selectionPool = selectAllScope === 'filtered' ? filteredData : paginatedData;
+  const selectionPoolIds = useMemo(
+    () => selectionPool.map(item => getRowId(item)),
+    [selectionPool, getRowId]
+  );
 
   const toggleAllSelection = useCallback(() => {
-    if (paginatedData.length === 0) return;
+    if (selectionPoolIds.length === 0) return;
     setSelectedIds(prev => {
-      const allSelected = paginatedData.every(item => prev.has(item.id));
-      if (allSelected) return new Set();
-      return new Set(paginatedData.map(item => item.id));
+      const next = toggleSelectedIds(prev, selectionPoolIds);
+      notifySelection(next);
+      return next;
     });
-  }, [paginatedData]);
+  }, [selectionPoolIds, notifySelection]);
+
+  const clearSelection = useCallback(() => {
+    setSelectedIds(prev => {
+      if (prev.size === 0) return prev;
+      const next = new Set<RowId>();
+      notifySelection(next);
+      return next;
+    });
+  }, [notifySelection]);
 
   const toggleColumnVisibility = useCallback((columnKey: string) => {
     setVisibleColumns(prev =>
@@ -216,8 +210,12 @@ export function useTable<T extends TableRow>(
     );
   }, []);
 
-  const isAllSelected =
-    paginatedData.length > 0 && paginatedData.every(item => selectedIds.has(item.id));
+  const handleColumnReorder = useCallback((newOrder: string[]) => {
+    setColumnOrder(newOrder);
+  }, []);
+
+  const isAllSelected = isEveryIdSelected(selectedIds, selectionPoolIds);
+  const isSomeSelected = isSomeIdSelected(selectedIds, selectionPoolIds) && !isAllSelected;
 
   const getTableProps = useCallback((): Pick<
     ModernTableProps<T>,
@@ -240,7 +238,11 @@ export function useTable<T extends TableRow>(
     | 'onToggleRow'
     | 'onToggleAll'
     | 'isAllSelected'
+    | 'isSomeSelected'
     | 'pagination'
+    | 'columnOrder'
+    | 'onColumnReorder'
+    | 'getRowId'
   > => {
     return {
       data: paginatedData,
@@ -257,17 +259,21 @@ export function useTable<T extends TableRow>(
       onToggleSticky: toggleStickyColumn,
       filters,
       onFilterChange: setColumnFilter,
-      enableSelection: true,
+      enableSelection,
       selectedIds,
       onToggleRow: toggleSelection,
       onToggleAll: toggleAllSelection,
       isAllSelected,
+      isSomeSelected,
+      getRowId,
+      columnOrder,
+      onColumnReorder: handleColumnReorder,
       pagination: {
         currentPage,
         totalPages,
         itemsPerPage,
         onPageChange: setCurrentPage,
-        itemsPerPageOptions: [10, 20, 50],
+        itemsPerPageOptions,
         onItemsPerPageChange: setItemsPerPage,
       },
     };
@@ -284,13 +290,19 @@ export function useTable<T extends TableRow>(
     toggleStickyColumn,
     filters,
     setColumnFilter,
+    enableSelection,
     selectedIds,
     toggleSelection,
     toggleAllSelection,
     isAllSelected,
+    isSomeSelected,
+    getRowId,
+    columnOrder,
+    handleColumnReorder,
     currentPage,
     totalPages,
     itemsPerPage,
+    itemsPerPageOptions,
   ]);
 
   return {
@@ -314,13 +326,17 @@ export function useTable<T extends TableRow>(
     selectedIds,
     toggleSelection,
     toggleAllSelection,
+    clearSelection,
     isAllSelected,
+    isSomeSelected,
 
     // Appearance
     density,
     setDensity,
     visibleColumns,
     toggleColumnVisibility,
+    columnOrder,
+    setColumnOrder,
 
     // Pagination
     itemsPerPage,
@@ -333,6 +349,8 @@ export function useTable<T extends TableRow>(
     // Sticky
     stickyColumns,
     toggleStickyColumn,
+
+    getRowId,
 
     /** Spread onto `<ModernTable columns={columns} {...getTableProps()} />` */
     getTableProps,
