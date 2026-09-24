@@ -14,8 +14,10 @@ export const ROW_HEIGHTS: Record<Density, number> = {
   comfortable: 64,
 };
 
-/** A visible column with its horizontal position, used for sticky offsets. */
+/** A visible column with its resolved width and horizontal position (for sticky offsets). */
 export type PositionedColumn<T> = Column<T> & {
+  /** Final width after flex / resize resolution. */
+  layoutWidth: number;
   offsetX: number;
   stickyOffset: number;
   isSticky?: boolean;

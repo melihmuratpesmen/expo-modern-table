@@ -153,6 +153,12 @@ export interface ModernTableBaseProps<T extends object> {
   onColumnReorder?: (newOrder: string[]) => void;
   enableColumnReorder?: boolean;
 
+  /** Drag the right edge of a header to resize its column. */
+  enableColumnResize?: boolean;
+  /** Controlled column widths (key → width) set by resizing. Internal when omitted. */
+  columnWidths?: Record<string, number>;
+  onColumnResize?: (key: string, width: number) => void;
+
   // Sticky
   stickyColumns?: string[];
   onToggleSticky?: (key: string) => void;

@@ -379,3 +379,72 @@ describe('ModernTable column options', () => {
     expect(onSort).toHaveBeenCalledWith('score', 'asc');
   });
 });
+
+describe('ModernTable column resize', () => {
+  const columns: Column<Row>[] = [
+    { key: 'name', title: 'Name', width: 100, minWidth: 60, maxWidth: 180 },
+    { key: 'score', title: 'Score', width: 80, resizable: false },
+  ];
+
+  it('commits the dragged width, clamped to min / max', () => {
+    const onColumnResize = jest.fn();
+    render(
+      <ModernTable
+        data={rows}
+        columns={columns}
+        enableColumnResize
+        onColumnResize={onColumnResize}
+      />
+    );
+
+    drag('resize-name', { x: 50 });
+    expect(onColumnResize).toHaveBeenLastCalledWith('name', 150);
+
+    // Uncontrolled: the new width is kept, so +200 from 150 clamps at maxWidth.
+    drag('resize-name', { x: 200 });
+    expect(onColumnResize).toHaveBeenLastCalledWith('name', 180);
+
+    drag('resize-name', { x: -500 });
+    expect(onColumnResize).toHaveBeenLastCalledWith('name', 60);
+  });
+
+  it('has no handle for resizable: false or without enableColumnResize', () => {
+    const { rerender } = render(<ModernTable data={rows} columns={columns} enableColumnResize />);
+    expect(screen.getAllByRole('adjustable')).toHaveLength(1);
+    rerender(<ModernTable data={rows} columns={columns} />);
+    expect(screen.queryAllByRole('adjustable')).toHaveLength(0);
+  });
+
+  it('resizes with screen-reader increment / decrement', () => {
+    const onColumnResize = jest.fn();
+    render(
+      <ModernTable
+        data={rows}
+        columns={columns}
+        enableColumnResize
+        onColumnResize={onColumnResize}
+      />
+    );
+    const handle = screen.getByRole('adjustable');
+    fireEvent(handle, 'accessibilityAction', { nativeEvent: { actionName: 'increment' } });
+    expect(onColumnResize).toHaveBeenLastCalledWith('name', 110);
+  });
+
+  it('uses controlled columnWidths', () => {
+    const onColumnResize = jest.fn();
+    render(
+      <ModernTable
+        data={rows}
+        columns={columns}
+        enableColumnResize
+        columnWidths={{ name: 120 }}
+        onColumnResize={onColumnResize}
+      />
+    );
+    drag('resize-name', { x: 10 });
+    expect(onColumnResize).toHaveBeenLastCalledWith('name', 130);
+    // Still controlled at 120, so the next drag starts from 120 again.
+    drag('resize-name', { x: 10 });
+    expect(onColumnResize).toHaveBeenLastCalledWith('name', 130);
+  });
+});

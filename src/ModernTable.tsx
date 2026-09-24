@@ -25,6 +25,7 @@ import { ColumnFilterModal } from './ColumnFilterModal';
 import { useTableTheme } from './hooks/useTableTheme';
 import { useStableCallback } from './hooks/useStableCallback';
 import { DraggableHeader } from './DraggableHeader';
+import { ColumnResizeHandle } from './ColumnResizeHandle';
 import { RowContext, TableBodyRow } from './TableBodyRow';
 import { createTableStyles } from './tableStyles';
 import {
@@ -34,19 +35,24 @@ import {
   PositionedColumn,
   ROW_HEIGHTS,
   CHECKBOX_WIDTH,
+  DEFAULT_COLUMN_WIDTH,
   getAlign,
   getColumnWidth,
   markedHeaderColor,
 } from './layout';
 import { nextSortDirection } from './core/sort';
 import { isEmptyFilterValue } from './core/filter';
-import { moveKey, reconcileOrder } from './core/columns';
+import { moveKey, reconcileOrder, resolveColumnWidths } from './core/columns';
 import { getDropIndex } from './core/reorder';
 import { INVALID_EDIT, parseEditedValue } from './core/edit';
 
 const AnimatedGHScrollView = Animated.createAnimatedComponent(GHScrollView);
 
 const defaultGetRowId = (row: object): RowId => (row as TableRow).id;
+
+// Resize limits for columns without their own minWidth / maxWidth.
+const MIN_RESIZE_WIDTH = 40;
+const MAX_RESIZE_WIDTH = 1000;
 
 export function ModernTable<T extends object>({
   data,
@@ -100,6 +106,9 @@ export function ModernTable<T extends object>({
   onRefresh,
   onEndReached,
   onEndReachedThreshold,
+  enableColumnResize = false,
+  columnWidths: columnWidthsProp,
+  onColumnResize,
 }: ModernTableProps<T>) {
   // `RowIdAccessor` guarantees `getRowId` when rows have no `id`; widen it for internal use.
   const rowIdOf = (getRowId as ((row: T) => RowId) | undefined) ?? defaultGetRowId;
@@ -167,22 +176,51 @@ export function ModernTable<T extends object>({
       .sort((a, b) => (position.get(a.key as string) ?? 0) - (position.get(b.key as string) ?? 0));
   }, [columns, visibleColumns, columnOrder]);
 
+  // --- COLUMN WIDTHS ---
+  // Resized widths are controlled via `columnWidths`, otherwise internal.
+  const [internalWidths, setInternalWidths] = useState<Record<string, number>>({});
+  const widthOverrides = columnWidthsProp ?? internalWidths;
+  const resolvedWidths = useMemo(
+    () =>
+      resolveColumnWidths(
+        activeColumns,
+        viewportWidth > 0 ? viewportWidth - leadingWidth : 0,
+        widthOverrides,
+        DEFAULT_COLUMN_WIDTH
+      ),
+    [activeColumns, viewportWidth, leadingWidth, widthOverrides]
+  );
+
+  const handleColumnResize = (key: string, width: number) => {
+    if (columnWidthsProp === undefined) setInternalWidths(prev => ({ ...prev, [key]: width }));
+    onColumnResize?.(key, width);
+  };
+
   const columnsWithOffsets = useMemo<PositionedColumn<T>[]>(() => {
     const result: PositionedColumn<T>[] = [];
     let currentX = leadingWidth;
     let stickyAccumulator = leadingWidth;
 
     for (const col of activeColumns) {
-      const width = getColumnWidth(col);
+      const width = resolvedWidths.get(col.key as string) ?? getColumnWidth(col);
       const isSticky = stickyColumns ? stickyColumns.includes(col.key as string) : col.isSticky;
-      result.push({ ...col, offsetX: currentX, stickyOffset: stickyAccumulator, isSticky });
+      result.push({
+        ...col,
+        layoutWidth: width,
+        offsetX: currentX,
+        stickyOffset: stickyAccumulator,
+        isSticky,
+      });
       currentX += width;
       if (isSticky) stickyAccumulator += width;
     }
     return result;
-  }, [activeColumns, leadingWidth, stickyColumns]);
+  }, [activeColumns, resolvedWidths, leadingWidth, stickyColumns]);
 
-  const columnWidths = useMemo(() => activeColumns.map(getColumnWidth), [activeColumns]);
+  const columnWidths = useMemo(
+    () => columnsWithOffsets.map(col => col.layoutWidth),
+    [columnsWithOffsets]
+  );
   const totalWidth = leadingWidth + columnWidths.reduce((acc, width) => acc + width, 0);
   const currentRowHeight = ROW_HEIGHTS[density];
   // iOS + FlashList can keep stale recycled cells after rapid sort/order switches.
@@ -332,7 +370,7 @@ export function ModernTable<T extends object>({
 
   const renderHeaderCell = (col: PositionedColumn<T>, index: number) => {
     const key = col.key as string;
-    const width = getColumnWidth(col);
+    const width = col.layoutWidth;
     const isSortable = !!onSort && col.sortable !== false;
     const isActiveSort = sortColumn === key;
     const isFiltered = !isEmptyFilterValue(filters?.[key]);
@@ -379,6 +417,18 @@ export function ModernTable<T extends object>({
               color={isFiltered ? tableTheme.primary : tableTheme.textSecondary}
             />
           </TouchableOpacity>
+        )}
+
+        {enableColumnResize && col.resizable !== false && (
+          <ColumnResizeHandle
+            width={width}
+            minWidth={col.minWidth ?? MIN_RESIZE_WIDTH}
+            maxWidth={col.maxWidth ?? MAX_RESIZE_WIDTH}
+            theme={tableTheme}
+            onResizeEnd={newWidth => handleColumnResize(key, newWidth)}
+            label={col.title}
+            testID={`resize-${key}`}
+          />
         )}
       </View>
     );

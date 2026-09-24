@@ -21,7 +21,6 @@ import {
   GROUP_GAP,
   PositionedColumn,
   getAlign,
-  getColumnWidth,
   markedCellColor,
 } from './layout';
 import { SIGNED_DECIMAL_KEYBOARD } from './utils/keyboard';
@@ -141,7 +140,7 @@ function TableBodyRowImpl<T extends object>({
               style={[
                 styles.cellBase,
                 {
-                  width: getColumnWidth(col),
+                  width: col.layoutWidth,
                   justifyContent: getAlign(col.align),
                   height: rowHeight,
                 },
