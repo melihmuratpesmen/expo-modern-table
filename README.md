@@ -51,15 +51,16 @@ Works with **Expo** and **bare React Native**. The package never imports `expo-s
 
 | Area | Capabilities |
 |------|----------------|
-| **Layout** | Horizontal scroll, sticky columns, sticky selection column, row grouping styles |
-| **Data ops** | Sort (`asc` → `desc` → clear), global search, column filters (text / select / boolean / range) |
-| **Selection** | Single-row toggle, select-all on page, selection count in toolbar |
-| **Columns** | Show/hide, pin/unpin sticky, drag reorder |
-| **Rows** | Drag reorder, inline cell edit, `onRowPress` |
-| **UX** | Density (`compact` / `standard` / `comfortable`), pagination UI, empty state |
-| **Design** | Light / dark themes, `themeConfig` overrides, custom `fontFamily` |
-| **i18n** | Full `translations` map (search, filter, pagination, empty, …) |
-| **Perf** | FlashList recycling + iOS sort remount safeguards |
+| **Layout** | Horizontal scroll, sticky columns, sticky selection column, row grouping styles, `flex` / min / max widths |
+| **Data ops** | Locale-aware sort (`asc` → `desc` → clear, custom `sortFn`), Turkish-aware global search, column filters (text / select / boolean / range), computed columns (`getValue`) |
+| **Server data** | `manual` mode with debounced search, `rowCount`, `table.state` for fetching |
+| **Selection** | Row toggle, select-all (page or filtered), partial-selection header, bulk-action bar |
+| **Columns** | Show/hide, pin/unpin sticky, drag reorder, drag resize, custom headers |
+| **Rows** | Drag reorder, inline cell edit, `onRowPress`, `getRowId` |
+| **UX** | Density, pagination, loading / error / empty states, pull to refresh, infinite scroll |
+| **Design** | Light / dark themes, `themeConfig` overrides, custom `fontFamily`, replaceable icons |
+| **i18n** | Full `translations` map (search, filter, pagination, empty, loading, …) |
+| **Perf** | Memoized rows, shared sticky animations, indexed search, FlashList recycling |
 
 ---
 
@@ -229,11 +230,20 @@ Toolbar, drag handles, checkbox, and filter modal are **internal** (not part of 
 type Column<T> = {
   key: string;
   title: string;
-  width?: number;
+  width?: number; // default 100; starting width of a flex column
+  flex?: number; // share of leftover width
+  minWidth?: number;
+  maxWidth?: number;
   align?: 'left' | 'center' | 'right';
   isSticky?: boolean;
   hidden?: boolean;
+  getValue?: (row: T) => unknown; // computed / nested value for sort, filter, search, text
+  sortable?: boolean; // default true
+  sortFn?: (a: T, b: T) => number;
+  searchable?: boolean; // default true
+  resizable?: boolean; // default true (with enableColumnResize)
   editable?: boolean; // needs onRowChange; numbers stay numbers
+  renderHeader?: (column: Column<T>) => React.ReactNode;
   renderCell?: (item: T, index: number) => React.ReactNode;
   filterConfig?: {
     type: 'text' | 'select' | 'boolean' | 'number-range';
@@ -241,6 +251,22 @@ type Column<T> = {
   };
 };
 ```
+
+### Toolbar, bulk actions, resize, icons
+
+```tsx
+<ModernTable
+  columns={columns}
+  {...table.getTableProps()}
+  enableColumnResize // drag a header's right edge; controlled via columnWidths / onColumnResize
+  toolbarActions={<ExportButton />}
+  renderBulkActions={ids => <DeleteButton ids={ids} />} // replaces the toolbar while rows are selected
+  icons={{ search: MySearchIcon }} // any slot of TableIcons; lucide by default
+/>
+```
+
+Each toolbar control appears when its handler is passed (`onSearchChange`, `onDensityChange`,
+`onToggleColumn`, …); `showToolbar={false}` hides the toolbar entirely.
 
 Deeper notes: [`docs/README.md`](./docs/README.md) · deferred / removed props: [`docs/DEFERRED.md`](./docs/DEFERRED.md)
 

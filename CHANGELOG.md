@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.4.0
+
+### Added
+
+- Columns: `getValue` (computed / nested values for sort, filter, search and cell text),
+  `sortable`, `sortFn`, `searchable`, `renderHeader`, `flex`, `minWidth`, `maxWidth`,
+  `resizable`.
+- Column resizing: `enableColumnResize`, `columnWidths` / `onColumnResize` (controlled or
+  internal). Also adjustable with screen-reader increment / decrement.
+- Toolbar: `showToolbar`, `toolbarActions`, `renderBulkActions` (a contextual bar that replaces
+  the toolbar while rows are selected).
+- Partial-selection header checkbox: `isSomeSelected` (passed by `getTableProps()`).
+- `icons` prop to replace any built-in icon; `defaultIcons`, `TableIcons`, `TableIcon` exports.
+- Checkbox accessibility role and checked / mixed state.
+
+### Changed
+
+- Toolbar controls are independent: search, density and the column menu each appear when their
+  handler is passed. Previously the toolbar needed all three, so tables passing only some of
+  them now show a toolbar.
+- `searchRows` / `buildSearchIndex` accept value getters as well as keys; `sortRows` takes
+  optional column definitions.
+
 ## 0.3.0
 
 ### Added

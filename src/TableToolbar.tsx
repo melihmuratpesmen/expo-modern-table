@@ -90,8 +90,12 @@ export function TableToolbar<T>({
     </View>
   );
 
+  // Contextual bar: while rows are selected, bulk actions take the whole toolbar — on a
+  // phone there is no room for them next to the regular buttons.
+  const showBulkBar = selectedCount > 0 && !!bulkActions;
+
   const renderLeft = () => {
-    if (selectedCount > 0 && bulkActions) {
+    if (showBulkBar) {
       return (
         <View style={styles.bulkBar}>
           {selectionBadge}
@@ -137,58 +141,60 @@ export function TableToolbar<T>({
       {renderLeft()}
 
       {/* ACTION BUTTONS */}
-      <View style={styles.actions}>
-        {/* Fullscreen toggle — shown when `screenOrientation` is passed */}
-        {canToggleFullscreen && (
-          <TouchableOpacity
-            onPress={toggleFullscreen}
-            style={styles.iconButton}
-            activeOpacity={0.7}
-            accessibilityRole="button"
-            accessibilityLabel="Fullscreen"
-            accessibilityState={{ selected: isFullscreen }}
-          >
-            {isFullscreen ? (
-              <icons.exitFullscreen size={20} color={theme.text} />
-            ) : (
-              <icons.fullscreen size={20} color={theme.text} />
-            )}
-          </TouchableOpacity>
-        )}
+      {!showBulkBar && (
+        <View style={styles.actions}>
+          {/* Fullscreen toggle — shown when `screenOrientation` is passed */}
+          {canToggleFullscreen && (
+            <TouchableOpacity
+              onPress={toggleFullscreen}
+              style={styles.iconButton}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Fullscreen"
+              accessibilityState={{ selected: isFullscreen }}
+            >
+              {isFullscreen ? (
+                <icons.exitFullscreen size={20} color={theme.text} />
+              ) : (
+                <icons.fullscreen size={20} color={theme.text} />
+              )}
+            </TouchableOpacity>
+          )}
 
-        {/* Row Reorder Toggle */}
-        {enableRowReorder && onToggleSelectionMode && (
-          <TouchableOpacity
-            onPress={onToggleSelectionMode}
-            style={[styles.iconButton, selectionMode === 'reorder' && styles.activeModeButton]}
-            activeOpacity={0.7}
-          >
-            {selectionMode === 'select' ? (
-              <icons.selectMode size={20} color={theme.text} />
-            ) : (
-              <icons.reorderMode size={20} color={theme.primary} />
-            )}
-          </TouchableOpacity>
-        )}
+          {/* Row Reorder Toggle */}
+          {enableRowReorder && onToggleSelectionMode && (
+            <TouchableOpacity
+              onPress={onToggleSelectionMode}
+              style={[styles.iconButton, selectionMode === 'reorder' && styles.activeModeButton]}
+              activeOpacity={0.7}
+            >
+              {selectionMode === 'select' ? (
+                <icons.selectMode size={20} color={theme.text} />
+              ) : (
+                <icons.reorderMode size={20} color={theme.primary} />
+              )}
+            </TouchableOpacity>
+          )}
 
-        {onDensityChange && (
-          <TouchableOpacity onPress={cycleDensity} style={styles.iconButton} activeOpacity={0.7}>
-            <icons.density size={20} color={theme.text} />
-          </TouchableOpacity>
-        )}
+          {onDensityChange && (
+            <TouchableOpacity onPress={cycleDensity} style={styles.iconButton} activeOpacity={0.7}>
+              <icons.density size={20} color={theme.text} />
+            </TouchableOpacity>
+          )}
 
-        {onToggleColumn && (
-          <TouchableOpacity
-            onPress={() => setIsMenuOpen(true)}
-            style={styles.iconButton}
-            activeOpacity={0.7}
-          >
-            <icons.columns size={20} color={theme.text} />
-          </TouchableOpacity>
-        )}
+          {onToggleColumn && (
+            <TouchableOpacity
+              onPress={() => setIsMenuOpen(true)}
+              style={styles.iconButton}
+              activeOpacity={0.7}
+            >
+              <icons.columns size={20} color={theme.text} />
+            </TouchableOpacity>
+          )}
 
-        {actions}
-      </View>
+          {actions}
+        </View>
+      )}
 
       {/* COLUMN VISIBILITY MODAL */}
       <Modal
@@ -386,14 +392,15 @@ const createStyles = (theme: TableTheme) =>
       gap: 4,
     },
     bulkLabel: {
+      flexShrink: 1,
       color: theme.text,
       fontSize: 14,
       fontFamily: theme.fontFamily.medium,
     },
     bulkActions: {
-      flex: 1,
+      marginLeft: 'auto',
+      flexShrink: 0,
       flexDirection: 'row',
-      justifyContent: 'flex-end',
       alignItems: 'center',
       gap: 8,
     },

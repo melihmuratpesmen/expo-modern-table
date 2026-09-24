@@ -33,7 +33,7 @@ const DATA: SubjectScore[] = [
 ];
 
 const COLUMNS: Column<SubjectScore>[] = [
-  { key: 'name', title: 'Subject', width: 140, isSticky: true },
+  { key: 'name', title: 'Subject', width: 140, minWidth: 100, isSticky: true },
   {
     key: 'group',
     title: 'Group',
@@ -136,6 +136,12 @@ export default function App() {
               screenOrientation={ScreenOrientation}
               enableRowReorder
               enableColumnReorder
+              enableColumnResize
+              renderBulkActions={ids => (
+                <Pressable onPress={table.clearSelection} style={styles.bulkButton}>
+                  <Text style={styles.bulkButtonText}>Clear {ids.size}</Text>
+                </Pressable>
+              )}
               rowGroupKey="group"
               onRowChange={updated => {
                 setRows(prev => prev.map(row => (row.id === updated.id ? updated : row)));
@@ -210,4 +216,11 @@ const styles = StyleSheet.create({
   demoChipActive: { backgroundColor: '#4f46e5', borderColor: '#4f46e5' },
   demoChipText: { fontSize: 13, fontWeight: '600', color: '#111827' },
   demoChipTextActive: { color: '#fff' },
+  bulkButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: '#fee2e2',
+  },
+  bulkButtonText: { color: '#b91c1c', fontWeight: '600' },
 });

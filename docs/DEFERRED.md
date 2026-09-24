@@ -35,8 +35,8 @@ Re-export later only if we want a headless / compose-your-own API.
 ## Half-finished / fragile areas to finish later
 
 ### Sort header → direction
-Cycles `null → asc → desc → null` (`core/sort.ts`, unit-tested in `0.2.0`). Still open:
-optional `enableSortClear` / per-column `sortable` flag.
+Cycles `null → asc → desc → null` (`core/sort.ts`, unit-tested in `0.2.0`); per-column
+`sortable` / `sortFn` since `0.4.0`. Still open: optional `enableSortClear`.
 
 ### Column order sync
 Done in `0.2.0`: order is reconciled with the current column keys on every render
@@ -47,9 +47,8 @@ Props `selectionMode` / `onToggleSelectionMode` existed but ModernTable always u
 internal state. Polish wires semi-controlled `selectionMode` + `onSelectionModeChange`.
 
 ### Toolbar show condition
-Toolbar appears only when `onSearchChange && onDensityChange && onToggleColumn` are
-all set. Too all-or-nothing — later: `showToolbar?: boolean` or per-slot flags
-(`showSearch`, `showDensity`, `showColumnMenu`).
+Done in `0.4.0`: each control follows its handler, plus `showToolbar`, `toolbarActions`,
+`renderBulkActions`.
 
 ### Pagination theming
 Chevron colors were hardcoded (`#ccc` / `#333`). Moved to theme tokens; pagination
@@ -85,7 +84,7 @@ Fullscreen = landscape lock only; hiding app chrome is left to `onFullscreenChan
 
 ## Intentionally postponed features (not started)
 
-- Column resize
+- ~~Column resize~~ — done in `0.4.0`
 - Column pin presets / persistence (AsyncStorage)
 - CSV / export
 - Virtualized horizontal sticky improvements
@@ -115,3 +114,4 @@ Fullscreen = landscape lock only; hiding app chrome is left to `onFullscreenChan
 | Row memoization, shared sticky interpolations, indexed search | `0.2.0` | Kept RN `Animated` (native driver) — a Reanimated migration wasn't needed |
 | `useTable` options, server-side (`manual`) mode, `getRowId` | `0.3.0` | Replaces the "useTable gaps" and "Server-side / remote data" notes |
 | Loading / error / empty states, refresh, infinite scroll | `0.3.0` | `isLoading`, `isLoadingMore`, `error`, `onRetry`, `emptyComponent`, … |
+| Column accessors, flex widths, resize, toolbar slots, bulk actions, icons | `0.4.0` | See CHANGELOG `0.4.0` |
