@@ -1,4 +1,4 @@
-import React, { memo } from 'react';
+import React, { memo, ReactNode } from 'react';
 import {
   Animated,
   StyleProp,
@@ -50,7 +50,10 @@ export interface RowContext<T extends object> {
   onEditTextChange: (text: string) => void;
   onCommitEdit: (item: T, key: string) => void;
   onDragEnd: (index: number, translationY: number) => void;
-  labels: { selectRow: string; dragToReorder: string };
+  labels: { selectRow: string; dragToReorder: string; expandRow: string; collapseRow: string };
+  renderExpandedRow?: (item: T, index: number) => ReactNode;
+  onToggleExpand: (id: RowId) => void;
+  expandedWidth: number;
 }
 
 export interface TableBodyRowProps<T extends object> {
@@ -58,6 +61,7 @@ export interface TableBodyRowProps<T extends object> {
   rowId: RowId;
   index: number;
   isSelected: boolean;
+  isExpanded: boolean;
   /** The cell being edited, only when it belongs to this row. */
   editing: EditingCell | null;
   isFirstInGroup: boolean;
@@ -70,6 +74,7 @@ function TableBodyRowImpl<T extends object>({
   rowId,
   index,
   isSelected,
+  isExpanded,
   editing,
   isFirstInGroup,
   isLastInGroup,
@@ -128,6 +133,22 @@ function TableBodyRowImpl<T extends object>({
         ]}
       >
         {ctx.showLeadingColumn && renderLeadingCell(dragGesture)}
+        {ctx.renderExpandedRow && (
+          <Animated.View
+            style={[
+              styles.expanderCell,
+              { height: rowHeight, backgroundColor: rowBgColor },
+              ctx.leadingTransform,
+            ]}
+          >
+            <ExpandButton
+              isExpanded={isExpanded}
+              onPress={() => ctx.onToggleExpand(rowId)}
+              color={theme.textSecondary}
+              label={isExpanded ? ctx.labels.collapseRow : ctx.labels.expandRow}
+            />
+          </Animated.View>
+        )}
 
         {ctx.columns.map(col => {
           const key = col.key as string;
@@ -208,7 +229,46 @@ function TableBodyRowImpl<T extends object>({
     );
   }
 
+  if (isExpanded && ctx.renderExpandedRow) {
+    return (
+      <View>
+        {renderContent()}
+        <Animated.View
+          style={[styles.expandedContent, { width: ctx.expandedWidth }, ctx.leadingTransform]}
+        >
+          {ctx.renderExpandedRow(item, index)}
+        </Animated.View>
+      </View>
+    );
+  }
+
   return renderContent();
+}
+
+function ExpandButton({
+  isExpanded,
+  onPress,
+  color,
+  label,
+}: {
+  isExpanded: boolean;
+  onPress: () => void;
+  color: string;
+  label: string;
+}) {
+  const icons = useTableIcons();
+  const Icon = isExpanded ? icons.collapse : icons.expand;
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      hitSlop={8}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ expanded: isExpanded }}
+    >
+      <Icon size={18} color={color} />
+    </TouchableOpacity>
+  );
 }
 
 function DragHandle({

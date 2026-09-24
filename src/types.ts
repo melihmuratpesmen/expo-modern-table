@@ -56,6 +56,8 @@ export interface TableTranslations {
   dragToReorder: string;
   pinColumn: string;
   close: string;
+  expandRow: string;
+  collapseRow: string;
 }
 
 export const DEFAULT_TRANSLATIONS: TableTranslations = {
@@ -90,6 +92,8 @@ export const DEFAULT_TRANSLATIONS: TableTranslations = {
   dragToReorder: 'Drag to reorder',
   pinColumn: 'Pin column',
   close: 'Close',
+  expandRow: 'Expand row',
+  collapseRow: 'Collapse row',
 };
 
 /** Turkish translations: `translations={TR_TRANSLATIONS}`. */
@@ -125,6 +129,8 @@ export const TR_TRANSLATIONS: TableTranslations = {
   dragToReorder: 'Sürükleyerek taşı',
   pinColumn: 'Sütunu sabitle',
   close: 'Kapat',
+  expandRow: 'Satırı genişlet',
+  collapseRow: 'Satırı daralt',
 };
 
 export interface Column<T> {
@@ -268,6 +274,13 @@ export interface ModernTableBaseProps<T extends object> {
 
   scrollEnabled?: boolean;
   onRowPress?: (item: T) => void;
+
+  // Expandable rows
+  /** Detail content below a row; adds an expand / collapse button to each row. */
+  renderExpandedRow?: (item: T, index: number) => ReactNode;
+  /** Controlled expanded rows. Internal when omitted. */
+  expandedIds?: Set<RowId>;
+  onToggleExpand?: (id: RowId) => void;
 
   // Toolbar
   /**

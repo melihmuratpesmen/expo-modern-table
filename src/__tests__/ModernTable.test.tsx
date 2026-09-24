@@ -624,3 +624,45 @@ describe('ModernTable footer', () => {
     expect(screen.queryByText('Total')).toBeNull();
   });
 });
+
+describe('ModernTable expandable rows', () => {
+  const columns: Column<Row>[] = [{ key: 'name', title: 'Name' }];
+  const renderExpandedRow = (item: Row) => <Text>Details of {item.name}</Text>;
+
+  it('toggles details with the expand button (uncontrolled)', () => {
+    render(<ModernTable data={rows} columns={columns} renderExpandedRow={renderExpandedRow} />);
+    expect(screen.queryByText('Details of Ali')).toBeNull();
+
+    const [first] = screen.getAllByRole('button', { name: 'Expand row' });
+    fireEvent.press(first);
+    expect(screen.getByText('Details of Ali')).toBeTruthy();
+
+    const collapse = screen.getByRole('button', { name: 'Collapse row' });
+    expect(collapse.props.accessibilityState).toMatchObject({ expanded: true });
+    fireEvent.press(collapse);
+    expect(screen.queryByText('Details of Ali')).toBeNull();
+  });
+
+  it('supports controlled expandedIds', () => {
+    const onToggleExpand = jest.fn();
+    render(
+      <ModernTable
+        data={rows}
+        columns={columns}
+        renderExpandedRow={renderExpandedRow}
+        expandedIds={new Set([2])}
+        onToggleExpand={onToggleExpand}
+      />
+    );
+    expect(screen.getByText('Details of Ayşe')).toBeTruthy();
+    fireEvent.press(screen.getAllByRole('button', { name: 'Expand row' })[0]);
+    expect(onToggleExpand).toHaveBeenCalledWith(1);
+    // Controlled: nothing changes until the parent updates expandedIds.
+    expect(screen.queryByText('Details of Ali')).toBeNull();
+  });
+
+  it('has no expand buttons without renderExpandedRow', () => {
+    render(<ModernTable data={rows} columns={columns} />);
+    expect(screen.queryByRole('button', { name: 'Expand row' })).toBeNull();
+  });
+});

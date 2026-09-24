@@ -1,6 +1,6 @@
 import { StyleSheet } from 'react-native';
 import { TableTheme } from './theme/tokens';
-import { CHECKBOX_WIDTH } from './layout';
+import { CHECKBOX_WIDTH, EXPANDER_WIDTH } from './layout';
 
 export function createTableStyles(theme: TableTheme) {
   return StyleSheet.create({
@@ -73,6 +73,19 @@ export function createTableStyles(theme: TableTheme) {
       fontSize: 11,
       textTransform: 'uppercase', // Modern touch
       letterSpacing: 0.5,
+    },
+    expanderCell: {
+      width: EXPANDER_WIDTH,
+      justifyContent: 'center',
+      alignItems: 'center',
+      position: 'relative',
+      zIndex: 101,
+    },
+    expandedContent: {
+      padding: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.border,
+      backgroundColor: theme.surfaceHighlight,
     },
     footer: {
       flexDirection: 'row',

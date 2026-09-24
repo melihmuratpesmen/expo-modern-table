@@ -29,6 +29,7 @@ import {
   PositionedColumn,
   ROW_HEIGHTS,
   CHECKBOX_WIDTH,
+  EXPANDER_WIDTH,
   DEFAULT_COLUMN_WIDTH,
   getAlign,
   getColumnWidth,
@@ -40,6 +41,7 @@ import { moveKey, reconcileOrder, resolveColumnWidths } from './core/columns';
 import { getDropIndex } from './core/reorder';
 import { INVALID_EDIT, parseEditedValue } from './core/edit';
 import { aggregate } from './core/aggregate';
+import { toggleId } from './core/selection';
 
 const AnimatedGHScrollView = Animated.createAnimatedComponent(GHScrollView);
 
@@ -110,6 +112,9 @@ export function ModernTable<T extends object>({
   renderBulkActions,
   icons: iconsProp,
   footerData,
+  renderExpandedRow,
+  expandedIds: expandedIdsProp,
+  onToggleExpand,
 }: ModernTableProps<T>) {
   const iconOverrides = useShallowStable(iconsProp);
   const icons = useMemo(() => ({ ...defaultIcons, ...iconOverrides }), [iconOverrides]);
@@ -138,7 +143,22 @@ export function ModernTable<T extends object>({
   // The leading column holds checkboxes, or drag handles in reorder mode — so it is also
   // needed for row reordering when selection itself is disabled.
   const showLeadingColumn = !!enableSelection || isReorderMode;
-  const leadingWidth = showLeadingColumn ? CHECKBOX_WIDTH : 0;
+  const isExpandable = !!renderExpandedRow;
+  const leadingWidth =
+    (showLeadingColumn ? CHECKBOX_WIDTH : 0) + (isExpandable ? EXPANDER_WIDTH : 0);
+
+  // Expanded rows: controlled via `expandedIds`, otherwise internal.
+  const [internalExpanded, setInternalExpanded] = useState<Set<RowId>>(() => new Set());
+  const isExpandedControlled = expandedIdsProp !== undefined;
+  const expandedIds = expandedIdsProp ?? internalExpanded;
+  const notifyToggleExpand = useStableCallback(onToggleExpand);
+  const handleToggleExpand = useCallback(
+    (id: RowId) => {
+      if (!isExpandedControlled) setInternalExpanded(prev => toggleId(prev, id));
+      notifyToggleExpand(id);
+    },
+    [isExpandedControlled, notifyToggleExpand]
+  );
 
   const toggleSelectionMode = () => {
     const next: SelectionMode = isReorderMode ? 'select' : 'reorder';
@@ -366,6 +386,17 @@ export function ModernTable<T extends object>({
     return content;
   }, [columnsWithOffsets, footerRows]);
 
+  /** Empty cell above / below the row expand buttons, pinned with the leading column. */
+  const renderExpanderPlaceholder = () => (
+    <Animated.View
+      style={[
+        styles.expanderCell,
+        { height: currentRowHeight, backgroundColor: tableTheme.headerBackground },
+        leadingTransform,
+      ]}
+    />
+  );
+
   const renderFooter = () => (
     <View style={[styles.footer, { height: currentRowHeight }]}>
       {showLeadingColumn && (
@@ -377,6 +408,7 @@ export function ModernTable<T extends object>({
           ]}
         />
       )}
+      {isExpandable && renderExpanderPlaceholder()}
       {columnsWithOffsets.map(col => {
         const key = col.key as string;
         const content = footerContent.get(key);
@@ -540,9 +572,16 @@ export function ModernTable<T extends object>({
 
   // --- ROWS ---
   const rowLabels = useMemo(
-    () => ({ selectRow: t.selectRow, dragToReorder: t.dragToReorder }),
-    [t.selectRow, t.dragToReorder]
+    () => ({
+      selectRow: t.selectRow,
+      dragToReorder: t.dragToReorder,
+      expandRow: t.expandRow,
+      collapseRow: t.collapseRow,
+    }),
+    [t.selectRow, t.dragToReorder, t.expandRow, t.collapseRow]
   );
+  // Expanded content spans the visible width and stays in view while scrolling sideways.
+  const expandedWidth = viewportWidth > 0 ? viewportWidth : totalWidth;
   const canEdit = !!onRowChange;
   const isPressable = !!onRowPress;
   const rowContext = useMemo<RowContext<T>>(
@@ -567,6 +606,9 @@ export function ModernTable<T extends object>({
       onCommitEdit: commitEdit,
       onDragEnd: handleRowDragEnd,
       labels: rowLabels,
+      renderExpandedRow,
+      onToggleExpand: handleToggleExpand,
+      expandedWidth,
     }),
     [
       columnsWithOffsets,
@@ -589,6 +631,9 @@ export function ModernTable<T extends object>({
       commitEdit,
       handleRowDragEnd,
       rowLabels,
+      renderExpandedRow,
+      handleToggleExpand,
+      expandedWidth,
     ]
   );
 
@@ -610,6 +655,7 @@ export function ModernTable<T extends object>({
           rowId={rowId}
           index={index}
           isSelected={!!selectedIds?.has(rowId)}
+          isExpanded={expandedIds.has(rowId)}
           editing={editingCell?.id === rowId ? editingCell : null}
           isFirstInGroup={isFirstInGroup}
           isLastInGroup={isLastInGroup}
@@ -617,7 +663,7 @@ export function ModernTable<T extends object>({
         />
       );
     },
-    [data, rowGroupKey, rowIdOf, selectedIds, editingCell, rowContext]
+    [data, rowGroupKey, rowIdOf, selectedIds, expandedIds, editingCell, rowContext]
   );
 
   const keyExtractor = useCallback((item: T) => String(rowIdOf(item)), [rowIdOf]);
@@ -687,6 +733,7 @@ export function ModernTable<T extends object>({
               {/* HEADER */}
               <View style={[styles.header, headerStyle, { height: currentRowHeight }]}>
                 {showLeadingColumn && renderHeaderLeadingCell()}
+                {isExpandable && renderExpanderPlaceholder()}
                 {columnsWithOffsets.map((col, index) => renderHeaderCell(col, index))}
               </View>
 

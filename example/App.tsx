@@ -33,7 +33,7 @@ const DATA: SubjectScore[] = [
 ];
 
 const COLUMNS: Column<SubjectScore>[] = [
-  { key: 'name', title: 'Subject', width: 140, minWidth: 100, isSticky: true },
+  { key: 'name', title: 'Subject', width: 140, minWidth: 100, isSticky: true, footer: () => 'Total' },
   {
     key: 'group',
     title: 'Group',
@@ -43,14 +43,15 @@ const COLUMNS: Column<SubjectScore>[] = [
       options: ['verbal', 'social', 'science'],
     },
   },
-  { key: 'total', title: 'T', width: 70, align: 'right' },
-  { key: 'correct', title: 'C', width: 70, align: 'right' },
-  { key: 'wrong', title: 'W', width: 70, align: 'right' },
+  { key: 'total', title: 'T', width: 70, align: 'right', footer: 'sum' },
+  { key: 'correct', title: 'C', width: 70, align: 'right', footer: 'sum' },
+  { key: 'wrong', title: 'W', width: 70, align: 'right', footer: 'sum' },
   {
     key: 'net',
     title: 'Net',
     width: 90,
     align: 'right',
+    footer: 'sum',
     filterConfig: { type: 'number-range' },
     renderCell: item => (
       <Text style={{ fontWeight: '600', color: item.net >= 8 ? '#059669' : '#111827' }}>
@@ -137,6 +138,12 @@ export default function App() {
               enableRowReorder
               enableColumnReorder
               enableColumnResize
+              renderExpandedRow={item => (
+                <Text style={theme === 'dark' ? styles.textLight : undefined}>
+                  {item.name}: {item.correct} correct, {item.wrong} wrong, net {item.net}. Success{' '}
+                  {Math.round((item.correct / item.total) * 100)}%.
+                </Text>
+              )}
               renderBulkActions={ids => (
                 <Pressable onPress={table.clearSelection} style={styles.bulkButton}>
                   <Text style={styles.bulkButtonText}>Clear {ids.size}</Text>

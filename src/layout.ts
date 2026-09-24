@@ -4,6 +4,7 @@ import { TableTheme, themeFallbacks } from './theme/tokens';
 import { darkenColor } from './utils/color';
 
 export const CHECKBOX_WIDTH = 50;
+export const EXPANDER_WIDTH = 40;
 export const DEFAULT_COLUMN_WIDTH = 100;
 /** Space above the first row of each group when `rowGroupKey` is set. */
 export const GROUP_GAP = 4;

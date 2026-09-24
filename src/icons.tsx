@@ -51,6 +51,8 @@ export interface TableIcons {
   indeterminate: TableIcon;
   previousPage: TableIcon;
   nextPage: TableIcon;
+  expand: TableIcon;
+  collapse: TableIcon;
 }
 
 export const defaultIcons: TableIcons = {
@@ -72,6 +74,8 @@ export const defaultIcons: TableIcons = {
   indeterminate: Minus,
   previousPage: ChevronLeft,
   nextPage: ChevronRight,
+  expand: ChevronRight,
+  collapse: ChevronDown,
 };
 
 const TableIconsContext = createContext<TableIcons>(defaultIcons);
