@@ -1,6 +1,7 @@
 import { ReactNode } from 'react';
 import { StyleProp, ViewStyle } from 'react-native';
 import { TableTheme } from './theme/tokens';
+import type { ScreenOrientationModule } from './hooks/useFullscreenOrientation';
 
 export type RowId = string | number;
 export type TableRow = { id: RowId };
@@ -59,6 +60,7 @@ export interface Column<T> {
   isSticky?: boolean;
   align?: 'left' | 'center' | 'right';
   renderCell?: (item: T, index: number) => ReactNode;
+  /** Tap-to-edit text cell. Needs `onRowChange`; numeric values are written back as numbers. */
   editable?: boolean;
   hidden?: boolean;
 
@@ -151,4 +153,11 @@ export interface ModernTableProps<T extends TableRow> {
 
   scrollEnabled?: boolean;
   onRowPress?: (item: T) => void;
+
+  /**
+   * Pass `expo-screen-orientation` (`import * as ScreenOrientation from 'expo-screen-orientation'`)
+   * to show the toolbar fullscreen (landscape) button.
+   */
+  screenOrientation?: ScreenOrientationModule;
+  onFullscreenChange?: (isFullscreen: boolean) => void;
 }

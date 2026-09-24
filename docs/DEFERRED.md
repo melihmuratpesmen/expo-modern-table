@@ -35,14 +35,12 @@ Re-export later only if we want a headless / compose-your-own API.
 ## Half-finished / fragile areas to finish later
 
 ### Sort header → direction
-Previously header always called `onSort(key, 'asc')`. Fixed in polish to cycle
-`null → asc → desc → null`. Still worth a dedicated unit test and optional
-`enableSortClear` / per-column `sortable` flag.
+Cycles `null → asc → desc → null` (`core/sort.ts`, unit-tested in `0.2.0`). Still open:
+optional `enableSortClear` / per-column `sortable` flag.
 
 ### Column order sync
-Internal `columnOrder` only resynced when `columns.length` changed. Polish adds
-optional controlled `columnOrder` prop. Still weak when keys change without length
-change — improve key-set diff sync.
+Done in `0.2.0`: order is reconciled with the current column keys on every render
+(`core/columns.ts#reconcileOrder`), for both controlled and internal order.
 
 ### `selectionMode` was props-ignored
 Props `selectionMode` / `onToggleSelectionMode` existed but ModernTable always used
@@ -59,8 +57,8 @@ still has no `translations` for a11y labels (prev/next).
 
 ### `useTable` gaps
 - No controlled mode for individual slices (always owns state).
-- `toggleAllSelection` scopes to **current page** only — document or add
-  `selectAllScope: 'page' | 'filtered'`.
+- `toggleAllSelection` scopes to **current page** only (other pages' selections are
+  kept since `0.2.0`) — consider `selectAllScope: 'page' | 'filtered'`.
 - No `columnOrder` state in `useTable` yet (table manages it).
 - No `getRowId` override — requires `T extends { id }`.
 
@@ -83,7 +81,8 @@ All filter/sort/paginate are client-side via `useTable`. Remote mode
 No `accessibilityLabel` / role wiring on sort headers, checkboxes, or toolbar actions.
 
 ### Fullscreen
-Depends on optional `expo-screen-orientation`. No bare-RN fallback beyond hiding the button.
+Since `0.2.0` the module is injected via `screenOrientation` (no optional `require`).
+Fullscreen = landscape lock only; hiding app chrome is left to `onFullscreenChange`.
 
 ## Intentionally postponed features (not started)
 
@@ -108,3 +107,6 @@ Depends on optional `expo-screen-orientation`. No bare-RN fallback beyond hiding
 | Example Expo app (SDK 54) | `0.1.0` | Expo Go–compatible playground |
 | npm publish | `0.1.0` | https://www.npmjs.com/package/expo-modern-table |
 | Docs / media / README landing | `0.1.1` | Badges, previews, docs index synced to npm |
+| Tooling: ESLint, Prettier, Jest, CI | `0.2.0` | React Compiler lint rules partly downgraded to warnings until phase 4 |
+| Pure core (`src/core`) + tests | `0.2.0` | sort / filter / search / paginate / selection / reorder / edit |
+| Bug-fix pass | `0.2.0` | See CHANGELOG `0.2.0` |

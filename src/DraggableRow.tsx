@@ -14,28 +14,31 @@ export interface DraggableRowChildrenProps {
 
 export interface DraggableRowProps {
   children: (props: DraggableRowChildrenProps) => React.ReactNode;
-  rowHeight: number;
   index: number;
   theme: TableTheme;
-  onReorder: (fromIndex: number, toIndex: number) => void;
+  /** Called with the row's index and total vertical drag distance. */
+  onDragEnd: (index: number, translationY: number) => void;
   isDragEnabled: boolean;
+  /** Gesture test id, for `react-native-gesture-handler/jest-utils`. */
+  testID?: string;
 }
 
 export function DraggableRow({
   children,
-  rowHeight,
   index,
   theme,
-  onReorder,
+  onDragEnd,
   isDragEnabled,
+  testID,
 }: DraggableRowProps) {
   const translationY = useSharedValue(0);
   const isDragging = useSharedValue(false);
   const zIndex = useSharedValue(1);
 
   const panGesture = Gesture.Pan()
+    .withTestId(testID ?? '')
     .enabled(isDragEnabled)
-    .onBegin(() => {
+    .onStart(() => {
       isDragging.value = true;
       zIndex.value = 100;
     })
@@ -43,17 +46,11 @@ export function DraggableRow({
       translationY.value = e.translationY;
     })
     .onEnd(e => {
+      if (e.translationY !== 0) runOnJS(onDragEnd)(index, e.translationY);
+    })
+    .onFinalize(() => {
       isDragging.value = false;
       zIndex.value = 1;
-
-      // Calculate approximate rows moved
-      const movedSlots = Math.round(e.translationY / rowHeight);
-      const newIndex = index + movedSlots;
-
-      if (movedSlots !== 0) {
-        runOnJS(onReorder)(index, newIndex);
-      }
-
       translationY.value = withSpring(0);
     });
 
@@ -67,6 +64,6 @@ export function DraggableRow({
   }));
 
   return (
-    <Animated.View style={[animatedStyle]}>{children({ dragGesture: panGesture })}</Animated.View>
+    <Animated.View style={animatedStyle}>{children({ dragGesture: panGesture })}</Animated.View>
   );
 }

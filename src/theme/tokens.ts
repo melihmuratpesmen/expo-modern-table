@@ -40,6 +40,13 @@ export interface TableTheme {
   warning: string;
   info: string;
 
+  // Marked columns (`Column.isMarked`). Optional so existing custom themes keep compiling.
+  markedBackground?: string;
+  markedHeaderBackground?: string;
+
+  // Modal backdrop
+  overlay?: string;
+
   // Typography — override with loaded custom fonts (e.g. Poppins)
   fontFamily: TableFontFamily;
 }
@@ -80,6 +87,11 @@ export const lightTheme: TableTheme = {
   warning: '#f59e0b',
   info: '#3b82f6',
 
+  markedBackground: '#FEF3C7',
+  markedHeaderBackground: '#FDE68A',
+
+  overlay: 'rgba(17, 24, 39, 0.4)',
+
   fontFamily: defaultFontFamily,
 };
 
@@ -111,5 +123,17 @@ export const darkTheme: TableTheme = {
   warning: '#fbbf24',
   info: '#60a5fa',
 
+  markedBackground: 'rgba(251, 191, 36, 0.12)',
+  markedHeaderBackground: 'rgba(251, 191, 36, 0.24)',
+
+  overlay: 'rgba(0, 0, 0, 0.6)',
+
   fontFamily: defaultFontFamily,
+};
+
+/** Fallbacks for optional tokens, used when a custom theme omits them. */
+export const themeFallbacks = {
+  markedBackground: lightTheme.markedBackground as string,
+  markedHeaderBackground: lightTheme.markedHeaderBackground as string,
+  overlay: lightTheme.overlay as string,
 };

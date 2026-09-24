@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -10,10 +10,12 @@ import {
 } from 'react-native';
 import { X, Check } from 'lucide-react-native';
 import { FilterConfig, FilterValue, TableTranslations } from './types';
-import { TableTheme } from './theme/tokens';
+import { TableTheme, themeFallbacks } from './theme/tokens';
+import { parseNumberInput } from './core/edit';
+import { SIGNED_DECIMAL_KEYBOARD } from './utils/keyboard';
 
+/** Mounted only while open, so the draft state always starts from `currentValue`. */
 interface ColumnFilterModalProps {
-  visible: boolean;
   onClose: () => void;
   columnTitle: string;
   filterConfig: FilterConfig;
@@ -24,7 +26,6 @@ interface ColumnFilterModalProps {
 }
 
 export function ColumnFilterModal({
-  visible,
   onClose,
   columnTitle,
   filterConfig,
@@ -34,23 +35,22 @@ export function ColumnFilterModal({
   translations,
 }: ColumnFilterModalProps) {
   const [tempValue, setTempValue] = useState<FilterValue>(currentValue);
+  // Range inputs keep the raw text so partial input like "1," or "-" can be typed.
+  const initialRange = typeof currentValue === 'object' ? currentValue : {};
+  const [minText, setMinText] = useState(initialRange.min?.toString() ?? '');
+  const [maxText, setMaxText] = useState(initialRange.max?.toString() ?? '');
   const tableTheme = theme;
   const styles = React.useMemo(() => createStyles(tableTheme), [tableTheme]);
 
-  // Modal açıldığında değeri senkronize et
-  useEffect(() => {
-    setTempValue(currentValue);
-  }, [visible, currentValue]);
-
   const handleApply = () => {
-    onApply(tempValue);
-    onClose();
+    if (filterConfig.type === 'number-range') {
+      onApply({ min: parseNumberInput(minText), max: parseNumberInput(maxText) });
+    } else {
+      onApply(tempValue);
+    }
   };
 
-  const cleanFilter = () => {
-    onApply(undefined);
-    onClose();
-  };
+  const cleanFilter = () => onApply(undefined);
 
   const renderFilterInput = () => {
     switch (filterConfig.type) {
@@ -76,7 +76,7 @@ export function ColumnFilterModal({
               <Text style={[styles.optionText, !tempValue && styles.optionTextActive]}>
                 {translations.all}
               </Text>
-              {!tempValue && <Check size={16} color="white" />}
+              {!tempValue && <Check size={16} color={tableTheme.textInverse} />}
             </TouchableOpacity>
 
             {filterConfig.options?.map(option => (
@@ -88,7 +88,7 @@ export function ColumnFilterModal({
                 <Text style={[styles.optionText, tempValue === option && styles.optionTextActive]}>
                   {option}
                 </Text>
-                {tempValue === option && <Check size={16} color="white" />}
+                {tempValue === option && <Check size={16} color={tableTheme.textInverse} />}
               </TouchableOpacity>
             ))}
           </ScrollView>
@@ -116,8 +116,7 @@ export function ColumnFilterModal({
           </View>
         );
 
-      case 'number-range': {
-        const rangeValue = typeof tempValue === 'object' && tempValue !== null ? tempValue : {};
+      case 'number-range':
         return (
           <View style={styles.rangeContainer}>
             <View style={styles.rangeInputWrapper}>
@@ -125,14 +124,10 @@ export function ColumnFilterModal({
               <TextInput
                 style={styles.input}
                 placeholder="0"
-                keyboardType="numeric"
-                value={rangeValue.min !== undefined ? String(rangeValue.min) : ''}
-                onChangeText={text =>
-                  setTempValue({
-                    ...rangeValue,
-                    min: text ? Number(text) : undefined,
-                  })
-                }
+                placeholderTextColor={tableTheme.textSecondary}
+                keyboardType={SIGNED_DECIMAL_KEYBOARD}
+                value={minText}
+                onChangeText={setMinText}
               />
             </View>
             <View style={styles.rangeInputWrapper}>
@@ -140,19 +135,14 @@ export function ColumnFilterModal({
               <TextInput
                 style={styles.input}
                 placeholder="100"
-                keyboardType="numeric"
-                value={rangeValue.max !== undefined ? String(rangeValue.max) : ''}
-                onChangeText={text =>
-                  setTempValue({
-                    ...rangeValue,
-                    max: text ? Number(text) : undefined,
-                  })
-                }
+                placeholderTextColor={tableTheme.textSecondary}
+                keyboardType={SIGNED_DECIMAL_KEYBOARD}
+                value={maxText}
+                onChangeText={setMaxText}
               />
             </View>
           </View>
         );
-      }
 
       default:
         return <Text>{translations.unknownFilter}</Text>;
@@ -161,7 +151,7 @@ export function ColumnFilterModal({
 
   return (
     <Modal
-      visible={visible}
+      visible
       transparent
       animationType="fade"
       supportedOrientations={['portrait', 'landscape']}
@@ -198,7 +188,7 @@ const createStyles = (theme: TableTheme) =>
   StyleSheet.create({
     overlay: {
       flex: 1,
-      backgroundColor: 'rgba(17, 24, 39, 0.4)', // Darker, smoother overlay
+      backgroundColor: theme.overlay ?? themeFallbacks.overlay,
       justifyContent: 'center',
       alignItems: 'center',
       padding: 20,

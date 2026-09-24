@@ -9,15 +9,19 @@ import Animated, {
 } from 'react-native-reanimated';
 import { TableTheme } from './theme/tokens';
 
+/** Long-press before a header drag starts, so horizontal scrolling over headers still works. */
+const DRAG_ACTIVATION_DELAY_MS = 250;
+
 interface DraggableHeaderProps {
-  title: string;
   width: number;
   height: number;
   index: number;
-  columnKey: string;
   theme: TableTheme;
-  onReorder: (fromIndex: number, toIndex: number) => void;
+  /** Called with the header's index and total horizontal drag distance. */
+  onDragEnd: (index: number, translationX: number) => void;
   children: React.ReactNode;
+  /** Gesture test id, for `react-native-gesture-handler/jest-utils`. */
+  testID?: string;
 }
 
 export function DraggableHeader({
@@ -25,8 +29,9 @@ export function DraggableHeader({
   height,
   index,
   theme,
-  onReorder,
+  onDragEnd,
   children,
+  testID,
 }: DraggableHeaderProps) {
   const translationX = useSharedValue(0);
   const isDragging = useSharedValue(false);
@@ -34,7 +39,9 @@ export function DraggableHeader({
   const scale = useSharedValue(1);
 
   const panGesture = Gesture.Pan()
-    .onBegin(() => {
+    .withTestId(testID ?? '')
+    .activateAfterLongPress(DRAG_ACTIVATION_DELAY_MS)
+    .onStart(() => {
       isDragging.value = true;
       zIndex.value = 100;
       scale.value = 1.05;
@@ -43,18 +50,13 @@ export function DraggableHeader({
       translationX.value = e.translationX;
     })
     .onEnd(e => {
+      if (e.translationX !== 0) runOnJS(onDragEnd)(index, e.translationX);
+    })
+    .onFinalize(() => {
+      // Runs for taps and cancelled gestures too, so the header never stays "lifted".
       isDragging.value = false;
       zIndex.value = 1;
       scale.value = 1;
-
-      // Calculate the approximate index moved based on width
-      const movedSlots = Math.round(e.translationX / width);
-      const newIndex = index + movedSlots;
-
-      if (movedSlots !== 0) {
-        runOnJS(onReorder)(index, newIndex);
-      }
-
       translationX.value = withSpring(0);
     });
 
@@ -84,7 +86,5 @@ export function DraggableHeader({
 const styles = StyleSheet.create({
   container: {
     justifyContent: 'center',
-    // positioning will be handled by the parent list layout,
-    // but the transform moves it relative to that slot
   },
 });

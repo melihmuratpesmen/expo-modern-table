@@ -1,4 +1,4 @@
-import React, { useRef, useState, useMemo, useCallback } from 'react';
+import React, { useRef, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -8,8 +8,8 @@ import {
   StyleProp,
   ViewStyle,
   TextInput,
-  useWindowDimensions,
   Platform,
+  LayoutChangeEvent,
 } from 'react-native';
 import {
   GestureDetector,
@@ -23,13 +23,14 @@ import {
   ChevronLeft,
   ChevronRight,
   ListFilter,
-  Hand, // Added Hand
-  AlignJustify, // Added AlignJustify for drag handle
+  Hand,
+  AlignJustify,
 } from 'lucide-react-native';
 import {
   ModernTableProps,
   Column,
   Density,
+  RowId,
   SelectionMode,
   TableRow,
   DEFAULT_TRANSLATIONS,
@@ -38,39 +39,26 @@ import { TableToolbar } from './TableToolbar';
 import { Checkbox } from './Checkbox';
 import { ColumnFilterModal } from './ColumnFilterModal';
 import { useTableTheme } from './hooks/useTableTheme';
-import { TableTheme } from './theme/tokens';
+import { TableTheme, themeFallbacks } from './theme/tokens';
 import { DraggableHeader } from './DraggableHeader';
 import { DraggableRow } from './DraggableRow';
 import { nextSortDirection } from './core/sort';
+import { isEmptyFilterValue } from './core/filter';
+import { moveKey, reconcileOrder } from './core/columns';
+import { getDropIndex } from './core/reorder';
+import { INVALID_EDIT, parseEditedValue } from './core/edit';
+import { darkenColor } from './utils/color';
+import { SIGNED_DECIMAL_KEYBOARD } from './utils/keyboard';
 
 const CHECKBOX_WIDTH = 50;
+const DEFAULT_COLUMN_WIDTH = 100;
+/** Space above the first row of each group when `rowGroupKey` is set. */
+const GROUP_GAP = 4;
 
 const ROW_HEIGHTS: Record<Density, number> = {
   compact: 36,
   standard: 48,
   comfortable: 64,
-};
-
-// Helper: Darken hex color by amount (0-100)
-const darkenHex = (color: string | undefined, amount: number) => {
-  if (!color) return undefined;
-  let useColor = color;
-  if (useColor.length === 4) {
-    useColor =
-      '#' + useColor[1] + useColor[1] + useColor[2] + useColor[2] + useColor[3] + useColor[3];
-  }
-
-  const num = parseInt(useColor.replace('#', ''), 16);
-  const r = (num >> 16) - amount;
-  const g = ((num >> 8) & 0x00ff) - amount;
-  const b = (num & 0x00ff) - amount;
-
-  return (
-    '#' +
-    (0x1000000 + (r < 0 ? 0 : r) * 0x10000 + (g < 0 ? 0 : g) * 0x100 + (b < 0 ? 0 : b))
-      .toString(16)
-      .slice(1)
-  );
 };
 
 const AnimatedGHScrollView = Animated.createAnimatedComponent(GHScrollView);
@@ -79,6 +67,21 @@ type PositionedColumn<T> = Column<T> & {
   offsetX: number;
   stickyOffset: number;
   isSticky?: boolean;
+};
+
+type EditingCell = { id: RowId; key: string; initialText: string };
+
+const getColumnWidth = <T,>(col: Column<T>) => col.width || DEFAULT_COLUMN_WIDTH;
+
+const getAlign = (align?: 'left' | 'center' | 'right') => {
+  switch (align) {
+    case 'center':
+      return 'center';
+    case 'right':
+      return 'flex-end';
+    default:
+      return 'flex-start';
+  }
 };
 
 export function ModernTable<T extends TableRow>({
@@ -121,126 +124,138 @@ export function ModernTable<T extends TableRow>({
   onRowPress,
   selectionMode: selectionModeProp,
   onSelectionModeChange,
+  screenOrientation,
+  onFullscreenChange,
 }: ModernTableProps<T>) {
   const tableTheme = useTableTheme(theme, themeConfig);
   const styles = useMemo(() => createStyles(tableTheme), [tableTheme]);
-  const t = { ...DEFAULT_TRANSLATIONS, ...translations };
+  const t = useMemo(() => ({ ...DEFAULT_TRANSLATIONS, ...translations }), [translations]);
 
-  const [internalColumnOrder, setInternalColumnOrder] = useState<string[]>(() =>
-    columns.map(c => c.key as string)
-  );
+  // --- COLUMN ORDER ---
+  // Controlled via `columnOrder`, otherwise internal. Either way it is reconciled with the
+  // current column keys, so added / removed columns never need an effect to sync.
+  const columnKeys = useMemo(() => columns.map(c => c.key as string), [columns]);
+  const [internalColumnOrder, setInternalColumnOrder] = useState<string[]>(columnKeys);
   const isColumnOrderControlled = columnOrderProp !== undefined;
-  const columnOrder = isColumnOrderControlled ? columnOrderProp : internalColumnOrder;
+  const columnOrder = useMemo(
+    () => reconcileOrder(columnOrderProp ?? internalColumnOrder, columnKeys),
+    [columnOrderProp, internalColumnOrder, columnKeys]
+  );
 
-  React.useEffect(() => {
-    if (isColumnOrderControlled) return;
-    const keys = columns.map(c => c.key as string);
-    setInternalColumnOrder(prev => {
-      if (prev.length === keys.length && prev.every((k, i) => k === keys[i])) return prev;
-      // Preserve relative order for keys that still exist, append new keys
-      const keySet = new Set(keys);
-      const kept = prev.filter(k => keySet.has(k));
-      const added = keys.filter(k => !kept.includes(k));
-      return [...kept, ...added];
-    });
-  }, [columns, isColumnOrderControlled]);
-
+  // --- SELECTION / REORDER MODE ---
   const [internalSelectionMode, setInternalSelectionMode] = useState<SelectionMode>('select');
   const isSelectionModeControlled = selectionModeProp !== undefined;
   const selectionMode = isSelectionModeControlled ? selectionModeProp : internalSelectionMode;
+  const isReorderMode = selectionMode === 'reorder';
+  // The leading column holds checkboxes, or drag handles in reorder mode — so it is also
+  // needed for row reordering when selection itself is disabled.
+  const showLeadingColumn = !!enableSelection || isReorderMode;
+  const leadingWidth = showLeadingColumn ? CHECKBOX_WIDTH : 0;
 
   const toggleSelectionMode = () => {
-    const next: SelectionMode = selectionMode === 'select' ? 'reorder' : 'select';
-    if (!isSelectionModeControlled) {
-      setInternalSelectionMode(next);
-    }
+    const next: SelectionMode = isReorderMode ? 'select' : 'reorder';
+    if (!isSelectionModeControlled) setInternalSelectionMode(next);
     onSelectionModeChange?.(next);
   };
 
-  const handleColumnReorder = (fromIndex: number, toIndex: number) => {
-    if (fromIndex === toIndex) return;
+  const [viewportWidth, setViewportWidth] = useState(0);
+  const handleViewportLayout = (e: LayoutChangeEvent) =>
+    setViewportWidth(e.nativeEvent.layout.width);
 
-    const newOrder = [...columnOrder];
-    const [movedItem] = newOrder.splice(fromIndex, 1);
-    const targetIndex = Math.max(0, Math.min(newOrder.length, toIndex));
-    newOrder.splice(targetIndex, 0, movedItem);
-
-    if (!isColumnOrderControlled) {
-      setInternalColumnOrder(newOrder);
-    }
-    onColumnReorder?.(newOrder);
-  };
-
-  const { width: SCREEN_WIDTH } = useWindowDimensions();
   const scrollX = useRef(new Animated.Value(0)).current;
 
-  // Edit Mode State
-  const [editingCell, setEditingCell] = useState<{
-    id: string | number;
-    key: string;
-  } | null>(null);
+  // --- EDIT STATE ---
+  // The input is uncontrolled: typed text lives in a ref so rows don't re-render per keystroke.
+  const [editingCell, setEditingCell] = useState<EditingCell | null>(null);
+  const editingRef = useRef<EditingCell | null>(null);
+  const editTextRef = useRef('');
 
-  const [tempValue, setTempValue] = useState('');
   const [activeFilterColumn, setActiveFilterColumn] = useState<string | null>(null);
 
-  // 1. Prepare Active Columns
-  // 1. Prepare Active Columns based on Order
+  // --- COLUMN LAYOUT ---
   const activeColumns = useMemo(() => {
-    // Filter visible columns first
-    const visibleCols = columns.filter(col =>
-      visibleColumns ? visibleColumns.includes(col.key as string) : true
-    );
-
-    // Sort according to columnOrder
-    return visibleCols.sort(
-      (a, b) => columnOrder.indexOf(a.key as string) - columnOrder.indexOf(b.key as string)
-    );
+    const visible = visibleColumns ? new Set(visibleColumns) : null;
+    const position = new Map(columnOrder.map((key, index) => [key, index]));
+    return columns
+      .filter(col => !visible || visible.has(col.key as string))
+      .sort((a, b) => (position.get(a.key as string) ?? 0) - (position.get(b.key as string) ?? 0));
   }, [columns, visibleColumns, columnOrder]);
 
-  // 2. Pre-calculate Offsets (Memoized)
-  const columnsWithOffsets = useMemo(() => {
-    let currentX = enableSelection ? CHECKBOX_WIDTH : 0;
-    let stickyAccumulator = enableSelection ? CHECKBOX_WIDTH : 0;
+  const columnsWithOffsets = useMemo<PositionedColumn<T>[]>(() => {
+    const result: PositionedColumn<T>[] = [];
+    let currentX = leadingWidth;
+    let stickyAccumulator = leadingWidth;
 
-    return activeColumns.map(col => {
-      const width = col.width || 100;
-      const colData = {
-        ...col,
-        offsetX: currentX,
-        stickyOffset: stickyAccumulator,
-      };
-
-      currentX += width;
-
+    for (const col of activeColumns) {
+      const width = getColumnWidth(col);
       const isSticky = stickyColumns ? stickyColumns.includes(col.key as string) : col.isSticky;
+      result.push({ ...col, offsetX: currentX, stickyOffset: stickyAccumulator, isSticky });
+      currentX += width;
+      if (isSticky) stickyAccumulator += width;
+    }
+    return result;
+  }, [activeColumns, leadingWidth, stickyColumns]);
 
-      if (isSticky) {
-        stickyAccumulator += width;
-      }
-
-      return { ...colData, isSticky };
-    });
-  }, [activeColumns, enableSelection, stickyColumns]);
-
-  const contentWidth = activeColumns.reduce((acc, col) => acc + (col.width || 100), 0);
-  const totalWidth = enableSelection ? contentWidth + CHECKBOX_WIDTH : contentWidth;
+  const columnWidths = useMemo(() => activeColumns.map(getColumnWidth), [activeColumns]);
+  const totalWidth = leadingWidth + columnWidths.reduce((acc, width) => acc + width, 0);
   const currentRowHeight = ROW_HEIGHTS[density];
   // iOS + FlashList can keep stale recycled cells after rapid sort/order switches.
   // Remount list on identity changes to force consistent redraw.
   const listIdentityKey = `${sortColumn ?? 'nosort'}-${sortDirection ?? 'none'}-${columnOrder.join('|')}`;
 
-  // --- EDIT LOGIC ---
-  const handleStartEdit = (item: T, key: string, value: unknown) => {
-    setEditingCell({ id: item.id, key });
-    setTempValue(String(value));
+  // --- REORDER ---
+  const handleHeaderDragEnd = (fromIndex: number, translationX: number) => {
+    const toIndex = getDropIndex(columnWidths, fromIndex, translationX);
+    const fromKey = columnsWithOffsets[fromIndex]?.key as string | undefined;
+    const toKey = columnsWithOffsets[toIndex]?.key as string | undefined;
+    if (toIndex === fromIndex || !fromKey || !toKey) return;
+
+    // Move by key within the full order, so hidden columns don't shift the target.
+    const next = moveKey(columnOrder, fromKey, toKey);
+    if (!isColumnOrderControlled) setInternalColumnOrder(next);
+    onColumnReorder?.(next);
   };
 
-  const handleFinishEdit = (item: T, key: string) => {
-    if (editingCell && onRowChange) {
-      const newItem = { ...item, [key]: tempValue };
-      onRowChange(newItem);
-    }
+  const rowSizes = useMemo(() => {
+    if (!isReorderMode) return [];
+    return data.map((item, index) => {
+      const startsGroup =
+        !!rowGroupKey && index > 0 && item[rowGroupKey] !== data[index - 1][rowGroupKey];
+      return currentRowHeight + (startsGroup ? GROUP_GAP : 0);
+    });
+  }, [isReorderMode, data, rowGroupKey, currentRowHeight]);
+
+  const handleRowDragEnd = (fromIndex: number, translationY: number) => {
+    if (sortDirection) return; // Order is meaningless while a sort is applied
+    const toIndex = getDropIndex(rowSizes, fromIndex, translationY);
+    if (toIndex !== fromIndex) onRowReorder?.(fromIndex, toIndex);
+  };
+
+  // --- EDIT LOGIC ---
+  const startEdit = (item: T, key: string) => {
+    const value = item[key as keyof T];
+    const cell: EditingCell = {
+      id: item.id,
+      key,
+      initialText: value === null || value === undefined ? '' : String(value),
+    };
+    editingRef.current = cell;
+    editTextRef.current = cell.initialText;
+    setEditingCell(cell);
+  };
+
+  /** Commits once per edit — submit also blurs, and the ref drops the second call. */
+  const commitEdit = (item: T, key: string) => {
+    const cell = editingRef.current;
+    if (!cell || cell.id !== item.id || cell.key !== key) return;
+    editingRef.current = null;
     setEditingCell(null);
+
+    const text = editTextRef.current;
+    if (!onRowChange || text === cell.initialText) return;
+    const value = parseEditedValue(text, item[key as keyof T]);
+    if (value === INVALID_EDIT) return;
+    onRowChange({ ...item, [key]: value });
   };
 
   // --- STICKY STYLE GENERATOR ---
@@ -272,20 +287,17 @@ export function ModernTable<T extends TableRow>({
     } as unknown as StyleProp<ViewStyle>;
   };
 
-  const getAlign = (align?: 'left' | 'center' | 'right') => {
-    switch (align) {
-      case 'center':
-        return 'center';
-      case 'right':
-        return 'flex-end';
-      default:
-        return 'flex-start';
-    }
-  };
+  const markedHeaderColor = (col: Column<T>) =>
+    col.markedColor
+      ? darkenColor(col.markedColor, 20)
+      : (tableTheme.markedHeaderBackground ?? themeFallbacks.markedHeaderBackground);
+
+  const markedCellColor = (col: Column<T>) =>
+    col.markedColor || (tableTheme.markedBackground ?? themeFallbacks.markedBackground);
 
   // --- RENDERERS ---
 
-  const renderCheckboxColumn = (
+  const renderLeadingCell = (
     type: 'header' | 'row',
     item?: T,
     bgColor: string = tableTheme.background,
@@ -293,9 +305,7 @@ export function ModernTable<T extends TableRow>({
   ) => {
     const isHeader = type === 'header';
 
-    // If in Reorder mode, render nothing in Header, or a placeholder
-    // In Row, render Drag Handle
-    if (selectionMode === 'reorder') {
+    if (isReorderMode) {
       if (isHeader) {
         return (
           <View
@@ -330,7 +340,6 @@ export function ModernTable<T extends TableRow>({
             },
           ]}
         >
-          {/* Visual Only - Drag logic is on the row wrapper */}
           {dragGesture ? (
             <GestureDetector gesture={dragGesture}>{DragHandle}</GestureDetector>
           ) : (
@@ -363,140 +372,87 @@ export function ModernTable<T extends TableRow>({
           onPress={() => (isHeader ? onToggleAll?.() : item && onToggleRow?.(item.id))}
           activeColor={tableTheme.primary}
           borderColor={tableTheme.textSecondary}
+          checkColor={tableTheme.textInverse}
         />
       </Animated.View>
     );
   };
 
-  const renderHeaderCell = useCallback(
-    (col: PositionedColumn<T>, index: number) => {
-      const stickyStyle = getStickyStyle(col, index, tableTheme.headerBackground);
-      const isSortable = !!onSort;
-      const isActiveSort = sortColumn === col.key;
-      const isFiltered = filters && filters[col.key as string] !== undefined;
-      const isSticky = col.isSticky || (stickyColumns && stickyColumns.includes(col.key as string));
+  const renderHeaderCell = (col: PositionedColumn<T>, index: number) => {
+    const key = col.key as string;
+    const width = getColumnWidth(col);
+    const isActiveSort = sortColumn === key;
+    const isFiltered = !isEmptyFilterValue(filters?.[key]);
 
-      const headerContent = (
-        <View
-          style={[
-            styles.headerCell, // Inner style for the content
-            { width: col.width || 100 },
-            col.align && {
-              justifyContent:
-                col.align === 'right'
-                  ? 'flex-end'
-                  : col.align === 'center'
-                    ? 'center'
-                    : 'flex-start',
-            },
-            headerStyle,
-            headerStyle,
-            (col.isMarked || col.markedColor) && {
-              backgroundColor: col.markedColor
-                ? darkenHex(col.markedColor, 20) // Darken custom color for header
-                : '#FDE68A', // Default marked header style
-            },
-            col.headerStyle, // New: Apply Header Style from Column
-          ]}
+    const headerContent = (
+      <View
+        style={[
+          styles.headerCell,
+          { width, justifyContent: getAlign(col.align) },
+          headerStyle,
+          (col.isMarked || col.markedColor) && { backgroundColor: markedHeaderColor(col) },
+          col.headerStyle,
+        ]}
+      >
+        <TouchableOpacity
+          style={[styles.headerContent, { justifyContent: getAlign(col.align) }]}
+          onPress={() => onSort?.(key, nextSortDirection(sortColumn, sortDirection, key))}
+          disabled={!onSort}
         >
+          <Text style={styles.headerText}>{col.title}</Text>
+          {isActiveSort &&
+            (sortDirection === 'asc' ? (
+              <ChevronUp size={16} color={tableTheme.text} />
+            ) : (
+              <ChevronDown size={16} color={tableTheme.text} />
+            ))}
+        </TouchableOpacity>
+
+        {col.filterConfig && (
           <TouchableOpacity
-            style={[
-              styles.headerContent,
-              col.align === 'center' && { justifyContent: 'center' },
-              col.align === 'right' && { justifyContent: 'flex-end' },
-            ]}
-            onPress={() => {
-              if (!isSortable || !onSort) return;
-              const key = col.key as string;
-              onSort(key, nextSortDirection(sortColumn, sortDirection, key));
-            }}
-            disabled={!isSortable}
+            style={[styles.filterIcon, isFiltered && styles.filterIconActive]}
+            onPress={() => setActiveFilterColumn(key)}
+            accessibilityRole="button"
+            accessibilityLabel={`${t.filter} ${col.title}`}
           >
-            <Text style={styles.headerText}>{col.title}</Text>
-            {isActiveSort &&
-              (sortDirection === 'asc' ? (
-                <ChevronUp size={16} color={tableTheme.text} />
-              ) : (
-                <ChevronDown size={16} color={tableTheme.text} />
-              ))}
-          </TouchableOpacity>
-
-          {col.filterConfig && (
-            <TouchableOpacity
-              style={[styles.filterIcon, isFiltered && styles.filterIconActive]}
-              onPress={() => setActiveFilterColumn(col.key as string)}
-            >
-              <ListFilter
-                size={16}
-                color={isFiltered ? tableTheme.primary : tableTheme.textSecondary}
-              />
-            </TouchableOpacity>
-          )}
-
-          {activeFilterColumn === col.key && col.filterConfig && (
-            <ColumnFilterModal
-              visible={true}
-              onClose={() => setActiveFilterColumn(null)}
-              columnTitle={col.title}
-              filterConfig={col.filterConfig}
-              currentValue={filters?.[col.key as string]}
-              onApply={val => {
-                onFilterChange?.(col.key as string, val);
-                setActiveFilterColumn(null);
-              }}
-              theme={tableTheme}
-              translations={t}
+            <ListFilter
+              size={16}
+              color={isFiltered ? tableTheme.primary : tableTheme.textSecondary}
             />
-          )}
-        </View>
-      );
+          </TouchableOpacity>
+        )}
+      </View>
+    );
 
-      // Wrap in DraggableHeader if not sticky AND enabled
-      if (!isSticky && enableColumnReorder) {
-        return (
-          <DraggableHeader
-            key={col.key as string}
-            width={col.width || 100}
-            height={currentRowHeight}
-            index={index}
-            columnKey={col.key as string}
-            title={col.title}
-            theme={tableTheme}
-            onReorder={handleColumnReorder}
-          >
-            {headerContent}
-          </DraggableHeader>
-        );
-      }
-
-      // Static render for sticky or if logic prevents drag
+    if (!col.isSticky && enableColumnReorder) {
       return (
-        <Animated.View
-          key={col.key as string}
-          style={[
-            styles.headerCellContainer, // Container style
-            { width: col.width || 100 },
-            stickyStyle,
-          ]}
+        <DraggableHeader
+          key={key}
+          width={width}
+          height={currentRowHeight}
+          index={index}
+          theme={tableTheme}
+          onDragEnd={handleHeaderDragEnd}
+          testID={`header-drag-${key}`}
         >
           {headerContent}
-        </Animated.View>
+        </DraggableHeader>
       );
-    },
-    [
-      onSort,
-      sortColumn,
-      sortDirection,
-      headerStyle,
-      filters,
-      activeFilterColumn,
-      onFilterChange,
-      onFilterChange,
-      columnOrder, // Re-render if order changes
-      tableTheme,
-      enableColumnReorder, // Re-render if toggle changes
-    ]
-  );
+    }
+
+    return (
+      <Animated.View
+        key={key}
+        style={[
+          styles.headerCellContainer,
+          { width },
+          getStickyStyle(col, index, tableTheme.headerBackground),
+        ]}
+      >
+        {headerContent}
+      </Animated.View>
+    );
+  };
 
   const renderRow = ({ item, index }: ListRenderItemInfo<T>) => {
     const isEven = index % 2 === 0;
@@ -507,7 +463,6 @@ export function ModernTable<T extends TableRow>({
         ? tableTheme.rowEven
         : tableTheme.rowOdd;
 
-    // Grouping Logic
     let isFirstInGroup = false;
     let isLastInGroup = false;
 
@@ -529,65 +484,60 @@ export function ModernTable<T extends TableRow>({
           style={[
             styles.row,
             { backgroundColor: rowBgColor, height: currentRowHeight },
-            rowGroupKey && { backgroundColor: rowBgColor }, // Ensure bg color applies for radius
             isFirstInGroup && {
               borderTopLeftRadius: 12,
               borderTopRightRadius: 12,
-              marginTop: index === 0 ? 0 : 4,
-            }, // Top Radius + optional margin? Use margin only on last to simplify
+              marginTop: index === 0 ? 0 : GROUP_GAP,
+            },
             isLastInGroup && {
               borderBottomLeftRadius: 12,
               borderBottomRightRadius: 12,
-            }, // Gap after group
+            },
             rowStyle,
             getRowStyle?.(item, index),
           ]}
         >
-          {enableSelection && renderCheckboxColumn('row', item, rowBgColor, dragGesture)}
+          {showLeadingColumn && renderLeadingCell('row', item, rowBgColor, dragGesture)}
 
           {columnsWithOffsets.map((col, colIndex) => {
-            const stickyStyle = getStickyStyle(col, colIndex, rowBgColor);
-            const isEditing = editingCell?.id === item.id && editingCell?.key === col.key;
+            const key = col.key as string;
+            const value = item[key as keyof T];
+            const isEditing = editingCell?.id === item.id && editingCell?.key === key;
+            const canEdit = !!col.editable && !!onRowChange;
 
             return (
               <Animated.View
-                key={col.key as string}
+                key={key}
                 style={[
                   styles.cellBase,
                   {
-                    width: col.width || 100,
+                    width: getColumnWidth(col),
                     justifyContent: getAlign(col.align),
                     height: currentRowHeight,
                   },
-
-                  stickyStyle,
-                  (col.isMarked || col.markedColor) && {
-                    backgroundColor: col.markedColor || '#FEF3C7',
-                  }, // Custom or Default marked cell style
-                  col.style, // New: Apply Cell Style from Column
+                  getStickyStyle(col, colIndex, rowBgColor),
+                  (col.isMarked || col.markedColor) && { backgroundColor: markedCellColor(col) },
+                  col.style,
                 ]}
               >
                 {isEditing ? (
                   <TextInput
                     style={styles.editInput}
-                    value={tempValue}
-                    onChangeText={setTempValue}
-                    onBlur={() => handleFinishEdit(item, col.key as string)}
-                    onSubmitEditing={() => handleFinishEdit(item, col.key as string)}
+                    defaultValue={editingCell.initialText}
+                    onChangeText={text => {
+                      editTextRef.current = text;
+                    }}
+                    onBlur={() => commitEdit(item, key)}
+                    keyboardType={typeof value === 'number' ? SIGNED_DECIMAL_KEYBOARD : 'default'}
+                    selectTextOnFocus
                     autoFocus
-                    placeholderTextColor="#9ca3af"
+                    placeholderTextColor={tableTheme.textSecondary}
                   />
                 ) : (
                   <TouchableOpacity
-                    disabled={!col.editable}
-                    onPress={() =>
-                      handleStartEdit(item, col.key as string, item[col.key as keyof T])
-                    }
-                    style={{
-                      flex: 1,
-                      justifyContent: getAlign(col.align) || 'center',
-                      width: '100%',
-                    }}
+                    disabled={!canEdit}
+                    onPress={() => startEdit(item, key)}
+                    style={[styles.cellTouchable, { alignItems: getAlign(col.align) }]}
                   >
                     {col.renderCell ? (
                       col.renderCell(item, index)
@@ -595,12 +545,12 @@ export function ModernTable<T extends TableRow>({
                       <Text
                         style={[
                           styles.cellText,
-                          col.editable && styles.editableText,
+                          canEdit && styles.editableText,
                           { textAlign: col.align || 'left' },
                         ]}
                         numberOfLines={1}
                       >
-                        {String(item[col.key as keyof T])}
+                        {String(value)}
                       </Text>
                     )}
                   </TouchableOpacity>
@@ -612,18 +562,15 @@ export function ModernTable<T extends TableRow>({
       );
     };
 
-    if (selectionMode === 'reorder') {
+    if (isReorderMode) {
       return (
         <DraggableRow
           key={String(item.id)}
           index={index}
-          rowHeight={currentRowHeight}
           theme={tableTheme}
-          isDragEnabled={!sortDirection} // Disable drag if sorted
-          onReorder={(from, to) => {
-            if (sortDirection) return; // Double protection
-            onRowReorder?.(from, to);
-          }}
+          isDragEnabled={!sortDirection}
+          onDragEnd={handleRowDragEnd}
+          testID={`row-drag-${item.id}`}
         >
           {({ dragGesture }) => renderRowContent(dragGesture)}
         </DraggableRow>
@@ -633,7 +580,50 @@ export function ModernTable<T extends TableRow>({
     return renderRowContent();
   };
 
+  // Everything renderRow reads besides `data`, so FlashList re-renders rows exactly when needed.
+  const extraData = useMemo(
+    () => ({
+      selectedIds,
+      editingCell,
+      columnsWithOffsets,
+      currentRowHeight,
+      showLeadingColumn,
+      isReorderMode,
+      sortDirection,
+      tableTheme,
+      rowStyle,
+      getRowStyle,
+      rowGroupKey,
+      onRowPress,
+      onRowChange,
+      onToggleRow,
+      onRowReorder,
+      rowSizes,
+    }),
+    [
+      selectedIds,
+      editingCell,
+      columnsWithOffsets,
+      currentRowHeight,
+      showLeadingColumn,
+      isReorderMode,
+      sortDirection,
+      tableTheme,
+      rowStyle,
+      getRowStyle,
+      rowGroupKey,
+      onRowPress,
+      onRowChange,
+      onToggleRow,
+      onRowReorder,
+      rowSizes,
+    ]
+  );
+
   const showToolbar = !!(onSearchChange && onDensityChange && onToggleColumn);
+  const activeFilterDef = activeFilterColumn
+    ? columns.find(c => c.key === activeFilterColumn)
+    : undefined;
 
   return (
     <View style={[styles.container, containerStyle]}>
@@ -654,10 +644,12 @@ export function ModernTable<T extends TableRow>({
           onToggleSelectionMode={toggleSelectionMode}
           selectedCount={selectedIds?.size || 0}
           translations={t}
+          screenOrientation={screenOrientation}
+          onFullscreenChange={onFullscreenChange}
         />
       )}
 
-      <View style={{ flex: 1 }}>
+      <View style={styles.viewport} onLayout={handleViewportLayout}>
         <AnimatedGHScrollView
           horizontal
           showsHorizontalScrollIndicator={true}
@@ -669,40 +661,40 @@ export function ModernTable<T extends TableRow>({
             useNativeDriver: true,
           })}
         >
-          <View style={{ flex: 1 }}>
-            <View
-              key={SCREEN_WIDTH} // Force re-render on orientation change
-              style={{ width: Math.max(SCREEN_WIDTH, totalWidth), flex: 1 }}
-            >
-              {/* HEADER */}
-              <View style={[styles.header, headerStyle, { height: currentRowHeight }]}>
-                {enableSelection &&
-                  renderCheckboxColumn('header', undefined, tableTheme.headerBackground)}
-                {columnsWithOffsets.map((col, index) => renderHeaderCell(col, index))}
-              </View>
+          {/*
+            Fill the table's own width (not the screen's) so there is no phantom scroll.
+            Width is explicit only: `flex: 1` would put this view under flex-basis rules on the
+            scroll axis. Height comes from the default cross-axis stretch.
+          */}
+          <View style={{ width: Math.max(viewportWidth, totalWidth) }}>
+            {/* HEADER */}
+            <View style={[styles.header, headerStyle, { height: currentRowHeight }]}>
+              {showLeadingColumn &&
+                renderLeadingCell('header', undefined, tableTheme.headerBackground)}
+              {columnsWithOffsets.map((col, index) => renderHeaderCell(col, index))}
+            </View>
 
-              {/* BODY */}
-              <View style={{ flex: 1, minHeight: 2 }}>
-                <FlashList
-                  key={Platform.OS === 'ios' ? listIdentityKey : undefined}
-                  data={data}
-                  extraData={[SCREEN_WIDTH, selectedIds, editingCell, sortColumn, sortDirection]}
-                  renderItem={renderRow}
-                  keyExtractor={item => String(item.id)}
-                  contentContainerStyle={styles.listContent}
-                  // FlashList v1 needs estimatedItemSize; v2 dropped it from its types. A
-                  // ts-expect-error would break type-checking against v1, so ignore instead.
-                  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-                  // @ts-ignore
-                  estimatedItemSize={currentRowHeight}
-                  scrollEnabled={scrollEnabled}
-                  ListEmptyComponent={
-                    <View style={styles.emptyContainer}>
-                      <Text style={styles.emptyText}>{t.empty}</Text>
-                    </View>
-                  }
-                />
-              </View>
+            {/* BODY */}
+            <View style={{ flex: 1, minHeight: 2 }}>
+              <FlashList
+                key={Platform.OS === 'ios' ? listIdentityKey : undefined}
+                data={data}
+                extraData={extraData}
+                renderItem={renderRow}
+                keyExtractor={item => String(item.id)}
+                contentContainerStyle={styles.listContent}
+                // FlashList v1 needs estimatedItemSize; v2 dropped it from its types. A
+                // ts-expect-error would break type-checking against v1, so ignore instead.
+                // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+                // @ts-ignore
+                estimatedItemSize={currentRowHeight}
+                scrollEnabled={scrollEnabled}
+                ListEmptyComponent={
+                  <View style={styles.emptyContainer}>
+                    <Text style={styles.emptyText}>{t.empty}</Text>
+                  </View>
+                }
+              />
             </View>
           </View>
         </AnimatedGHScrollView>
@@ -711,7 +703,6 @@ export function ModernTable<T extends TableRow>({
       {pagination && (
         <View style={styles.paginationContainer}>
           <View style={styles.paginationLeft}>
-            {/* Items Per Page Selector */}
             {pagination.itemsPerPageOptions && pagination.onItemsPerPageChange && (
               <View style={styles.perPageContainer}>
                 <Text style={styles.perPageLabel}>{t.show}</Text>
@@ -776,6 +767,22 @@ export function ModernTable<T extends TableRow>({
           </View>
         </View>
       )}
+
+      {activeFilterDef?.filterConfig && (
+        <ColumnFilterModal
+          key={activeFilterColumn}
+          onClose={() => setActiveFilterColumn(null)}
+          columnTitle={activeFilterDef.title}
+          filterConfig={activeFilterDef.filterConfig}
+          currentValue={filters?.[activeFilterDef.key as string]}
+          onApply={value => {
+            onFilterChange?.(activeFilterDef.key as string, value);
+            setActiveFilterColumn(null);
+          }}
+          theme={tableTheme}
+          translations={t}
+        />
+      )}
     </View>
   );
 }
@@ -794,6 +801,9 @@ function createStyles(theme: TableTheme) {
       shadowOpacity: 0.1, // Softer shadow
       shadowRadius: 12, // Larger spread
       elevation: 5,
+    },
+    viewport: {
+      flex: 1,
     },
     header: {
       flexDirection: 'row',
@@ -835,6 +845,12 @@ function createStyles(theme: TableTheme) {
       flexDirection: 'row',
       alignItems: 'center',
       borderRightWidth: 0, // Removing vertical borders
+    },
+    // Fills the whole cell so the tap target is the cell, not just the text line.
+    cellTouchable: {
+      flex: 1,
+      alignSelf: 'stretch',
+      justifyContent: 'center',
     },
     headerText: {
       fontFamily: theme.fontFamily.bold,

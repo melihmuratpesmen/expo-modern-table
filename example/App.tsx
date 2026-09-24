@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, View, Pressable } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import * as ScreenOrientation from 'expo-screen-orientation';
 import { ModernTable, useTable, Column } from 'expo-modern-table';
 
 type SubjectScore = {
@@ -73,61 +74,64 @@ export default function App() {
 
   return (
     <GestureHandlerRootView style={styles.root}>
-      <SafeAreaView style={[styles.safe, theme === 'dark' && styles.safeDark]} edges={['top', 'left', 'right']}>
-        <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
+      <SafeAreaProvider>
+        <SafeAreaView style={[styles.safe, theme === 'dark' && styles.safeDark]} edges={['top', 'left', 'right']}>
+          <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
 
-        <View style={styles.header}>
-          <View>
-            <Text style={[styles.title, theme === 'dark' && styles.textLight]}>
-              expo-modern-table
-            </Text>
-            <Text style={[styles.subtitle, theme === 'dark' && styles.textMuted]}>
-              Example playground
-            </Text>
+          <View style={styles.header}>
+            <View>
+              <Text style={[styles.title, theme === 'dark' && styles.textLight]}>
+                expo-modern-table
+              </Text>
+              <Text style={[styles.subtitle, theme === 'dark' && styles.textMuted]}>
+                Example playground
+              </Text>
+            </View>
+            <Pressable
+              onPress={() => setTheme(prev => (prev === 'light' ? 'dark' : 'light'))}
+              style={[styles.themeButton, theme === 'dark' && styles.themeButtonDark]}
+            >
+              <Text style={[styles.themeButtonText, theme === 'dark' && styles.textLight]}>
+                {theme === 'light' ? 'Dark' : 'Light'}
+              </Text>
+            </Pressable>
           </View>
-          <Pressable
-            onPress={() => setTheme(prev => (prev === 'light' ? 'dark' : 'light'))}
-            style={[styles.themeButton, theme === 'dark' && styles.themeButtonDark]}
-          >
-            <Text style={[styles.themeButtonText, theme === 'dark' && styles.textLight]}>
-              {theme === 'light' ? 'Dark' : 'Light'}
-            </Text>
-          </Pressable>
-        </View>
 
-        <View style={styles.tableWrap}>
-          <ModernTable
-            columns={COLUMNS}
-            {...table.getTableProps()}
-            theme={theme}
-            enableRowReorder
-            enableColumnReorder
-            rowGroupKey="group"
-            onRowChange={updated => {
-              setRows(prev => prev.map(row => (row.id === updated.id ? updated : row)));
-            }}
-            onRowReorder={(from, to) => {
-              const page = table.paginatedData;
-              const fromId = page[from]?.id;
-              const toId = page[to]?.id;
-              if (fromId == null || toId == null) return;
-              setRows(prev => {
-                const next = [...prev];
-                const fromIndex = next.findIndex(r => r.id === fromId);
-                const toIndex = next.findIndex(r => r.id === toId);
-                if (fromIndex < 0 || toIndex < 0) return prev;
-                const [moved] = next.splice(fromIndex, 1);
-                next.splice(toIndex, 0, moved);
-                return next;
-              });
-            }}
-            translations={{
-              searchPlaceholder: 'Search subjects...',
-              empty: 'No subjects found',
-            }}
-          />
-        </View>
-      </SafeAreaView>
+          <View style={styles.tableWrap}>
+            <ModernTable
+              columns={COLUMNS}
+              {...table.getTableProps()}
+              theme={theme}
+              screenOrientation={ScreenOrientation}
+              enableRowReorder
+              enableColumnReorder
+              rowGroupKey="group"
+              onRowChange={updated => {
+                setRows(prev => prev.map(row => (row.id === updated.id ? updated : row)));
+              }}
+              onRowReorder={(from, to) => {
+                const page = table.paginatedData;
+                const fromId = page[from]?.id;
+                const toId = page[to]?.id;
+                if (fromId == null || toId == null) return;
+                setRows(prev => {
+                  const next = [...prev];
+                  const fromIndex = next.findIndex(r => r.id === fromId);
+                  const toIndex = next.findIndex(r => r.id === toId);
+                  if (fromIndex < 0 || toIndex < 0) return prev;
+                  const [moved] = next.splice(fromIndex, 1);
+                  next.splice(toIndex, 0, moved);
+                  return next;
+                });
+              }}
+              translations={{
+                searchPlaceholder: 'Search subjects...',
+                empty: 'No subjects found',
+              }}
+            />
+          </View>
+        </SafeAreaView>
+      </SafeAreaProvider>
     </GestureHandlerRootView>
   );
 }

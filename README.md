@@ -43,7 +43,7 @@ Built on [`@shopify/flash-list`](https://shopify.github.io/flash-list/). Battle-
 
 Most RN tables are either too minimal or too web-centric. `expo-modern-table` focuses on **mobile-first data work**: sticky columns, toolbar controls, client-side filter/sort/paginate via `useTable`, and theming that fits Expo apps — without locking you into Expo-only APIs.
 
-Works with **Expo** and **bare React Native**. Optional `expo-screen-orientation` only powers the fullscreen toolbar action.
+Works with **Expo** and **bare React Native**. The package never imports `expo-screen-orientation` itself — pass it via `screenOrientation` to enable the fullscreen toolbar action.
 
 ---
 
@@ -75,6 +75,14 @@ npm install lucide-react-native
 ```bash
 npx expo install expo-screen-orientation
 ```
+
+```tsx
+import * as ScreenOrientation from 'expo-screen-orientation';
+
+<ModernTable screenOrientation={ScreenOrientation} onFullscreenChange={setFullscreen} … />
+```
+
+The previous orientation lock is restored when leaving fullscreen or when the table unmounts.
 
 **Required app setup**
 
@@ -151,7 +159,7 @@ type Column<T> = {
   align?: 'left' | 'center' | 'right';
   isSticky?: boolean;
   hidden?: boolean;
-  editable?: boolean;
+  editable?: boolean; // needs onRowChange; numbers stay numbers
   renderCell?: (item: T, index: number) => React.ReactNode;
   filterConfig?: {
     type: 'text' | 'select' | 'boolean' | 'number-range';
@@ -222,7 +230,7 @@ A dedicated docs site (Docusaurus / Nextra) is **not** required for `0.1.x`. Whe
 
 | | |
 |--|--|
-| npm | [`expo-modern-table@0.1.1`](https://www.npmjs.com/package/expo-modern-table) |
+| npm | [`expo-modern-table`](https://www.npmjs.com/package/expo-modern-table) — see [CHANGELOG](./CHANGELOG.md) |
 | Stability | Early `0.x` — prefer additive changes; breaking changes possible before `1.0` |
 | Example | Expo Go **SDK 54** (current App Store Expo Go) |
 

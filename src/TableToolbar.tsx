@@ -21,21 +21,11 @@ import {
   ArrowUpDown,
 } from 'lucide-react-native';
 import { Density, Column, TableTranslations } from './types';
-import { TableTheme } from './theme/tokens';
-
-/** Optional peer — fullscreen toggle is hidden when not installed */
-type ScreenOrientationModule = {
-  lockAsync: (lock: unknown) => Promise<void>;
-  OrientationLock: { PORTRAIT_UP: unknown; LANDSCAPE: unknown };
-};
-
-let ScreenOrientation: ScreenOrientationModule | null = null;
-try {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  ScreenOrientation = require('expo-screen-orientation');
-} catch {
-  ScreenOrientation = null;
-}
+import { TableTheme, themeFallbacks } from './theme/tokens';
+import {
+  ScreenOrientationModule,
+  useFullscreenOrientation,
+} from './hooks/useFullscreenOrientation';
 
 interface TableToolbarProps<T> {
   searchQuery: string;
@@ -54,6 +44,8 @@ interface TableToolbarProps<T> {
   onToggleSelectionMode?: () => void;
   selectedCount?: number;
   translations: TableTranslations;
+  screenOrientation?: ScreenOrientationModule;
+  onFullscreenChange?: (isFullscreen: boolean) => void;
 }
 
 export function TableToolbar<T>({
@@ -72,9 +64,15 @@ export function TableToolbar<T>({
   onToggleSelectionMode,
   selectedCount = 0,
   translations,
+  screenOrientation,
+  onFullscreenChange,
 }: TableToolbarProps<T>) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  const {
+    isFullscreen,
+    toggleFullscreen,
+    isAvailable: canToggleFullscreen,
+  } = useFullscreenOrientation(screenOrientation, onFullscreenChange);
 
   const styles = React.useMemo(() => createStyles(theme), [theme]);
 
@@ -86,16 +84,6 @@ export function TableToolbar<T>({
       comfortable: 'compact',
     };
     onDensityChange(next[density]);
-  };
-
-  const toggleFullscreen = async () => {
-    if (!ScreenOrientation) return;
-    if (isFullscreen) {
-      await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
-    } else {
-      await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
-    }
-    setIsFullscreen(!isFullscreen);
   };
 
   return (
@@ -120,12 +108,15 @@ export function TableToolbar<T>({
 
       {/* ACTION BUTTONS */}
       <View style={styles.actions}>
-        {/* Fullscreen Toggle — requires expo-screen-orientation */}
-        {ScreenOrientation && (
+        {/* Fullscreen toggle — shown when `screenOrientation` is passed */}
+        {canToggleFullscreen && (
           <TouchableOpacity
             onPress={toggleFullscreen}
             style={styles.iconButton}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Fullscreen"
+            accessibilityState={{ selected: isFullscreen }}
           >
             {isFullscreen ? (
               <Minimize2 size={20} color={theme.text} />
@@ -293,7 +284,7 @@ const createStyles = (theme: TableTheme) =>
     // Modal Styles
     modalOverlay: {
       flex: 1,
-      backgroundColor: 'rgba(17, 24, 39, 0.4)', // Darker, smoother overlay
+      backgroundColor: theme.overlay ?? themeFallbacks.overlay,
       justifyContent: 'center',
       alignItems: 'center',
     },
