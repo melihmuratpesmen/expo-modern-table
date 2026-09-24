@@ -91,6 +91,7 @@ type TablePropKeys =
   | 'onToggleRow'
   | 'onToggleAll'
   | 'isAllSelected'
+  | 'isSomeSelected'
   | 'pagination';
 
 /** What `getTableProps()` returns — spread it onto `ModernTable`. */
@@ -324,6 +325,7 @@ function useTableImpl<T extends object>(
         onToggleRow: toggleSelection,
         onToggleAll: toggleAllSelection,
         isAllSelected,
+        isSomeSelected,
         pagination: showPagination
           ? {
               currentPage,
@@ -354,6 +356,7 @@ function useTableImpl<T extends object>(
       toggleSelection,
       toggleAllSelection,
       isAllSelected,
+      isSomeSelected,
       showPagination,
       currentPage,
       totalPages,

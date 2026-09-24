@@ -109,6 +109,10 @@ export function ModernTable<T extends object>({
   enableColumnResize = false,
   columnWidths: columnWidthsProp,
   onColumnResize,
+  isSomeSelected,
+  showToolbar: showToolbarProp,
+  toolbarActions,
+  renderBulkActions,
 }: ModernTableProps<T>) {
   // `RowIdAccessor` guarantees `getRowId` when rows have no `id`; widen it for internal use.
   const rowIdOf = (getRowId as ((row: T) => RowId) | undefined) ?? defaultGetRowId;
@@ -359,6 +363,7 @@ export function ModernTable<T extends object>({
       ) : (
         <Checkbox
           checked={!!isAllSelected}
+          indeterminate={!isAllSelected && !!isSomeSelected}
           onPress={() => onToggleAll?.()}
           activeColor={tableTheme.primary}
           borderColor={tableTheme.textSecondary}
@@ -542,7 +547,17 @@ export function ModernTable<T extends object>({
 
   const keyExtractor = useCallback((item: T) => String(rowIdOf(item)), [rowIdOf]);
 
-  const showToolbar = !!(onSearchChange && onDensityChange && onToggleColumn);
+  const showToolbar =
+    showToolbarProp ??
+    !!(
+      onSearchChange ||
+      onDensityChange ||
+      onToggleColumn ||
+      enableRowReorder ||
+      screenOrientation ||
+      toolbarActions ||
+      renderBulkActions
+    );
   const activeFilterDef = activeFilterColumn
     ? columns.find(c => c.key === activeFilterColumn)
     : undefined;
@@ -551,13 +566,13 @@ export function ModernTable<T extends object>({
     <View style={[styles.container, containerStyle]}>
       {showToolbar && (
         <TableToolbar
-          searchQuery={searchQuery || ''}
-          onSearchChange={onSearchChange!}
+          searchQuery={searchQuery}
+          onSearchChange={onSearchChange}
           density={density}
-          onDensityChange={onDensityChange!}
+          onDensityChange={onDensityChange}
           columns={columns}
-          visibleColumns={visibleColumns || []}
-          onToggleColumn={onToggleColumn!}
+          visibleColumns={visibleColumns ?? columns.map(c => c.key as string)}
+          onToggleColumn={onToggleColumn}
           stickyColumns={stickyColumns}
           onToggleSticky={onToggleSticky}
           theme={tableTheme}
@@ -568,6 +583,12 @@ export function ModernTable<T extends object>({
           translations={t}
           screenOrientation={screenOrientation}
           onFullscreenChange={onFullscreenChange}
+          actions={toolbarActions}
+          bulkActions={
+            renderBulkActions && selectedIds && selectedIds.size > 0
+              ? renderBulkActions(selectedIds)
+              : undefined
+          }
         />
       )}
 

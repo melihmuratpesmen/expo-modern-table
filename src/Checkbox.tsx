@@ -10,6 +10,7 @@ interface CheckboxProps {
   activeColor?: string;
   borderColor?: string;
   checkColor?: string;
+  accessibilityLabel?: string;
 }
 
 export function Checkbox({
@@ -19,11 +20,16 @@ export function Checkbox({
   activeColor = '#4f46e5',
   borderColor = '#cbd5e1',
   checkColor = '#fff',
+  accessibilityLabel,
 }: CheckboxProps) {
   return (
     <TouchableOpacity
       activeOpacity={0.7}
       onPress={onPress}
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked: indeterminate ? 'mixed' : checked }}
+      accessibilityLabel={accessibilityLabel}
+      hitSlop={10}
       style={[
         styles.container,
         checked || indeterminate

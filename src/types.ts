@@ -126,6 +126,8 @@ export interface ModernTableBaseProps<T extends object> {
   enableSelection?: boolean;
   selectedIds?: Set<RowId>;
   isAllSelected?: boolean;
+  /** Some (not all) rows selected — the header checkbox shows a dash. */
+  isSomeSelected?: boolean;
   onToggleAll?: () => void;
   onToggleRow?: (id: RowId) => void;
 
@@ -190,6 +192,17 @@ export interface ModernTableBaseProps<T extends object> {
 
   scrollEnabled?: boolean;
   onRowPress?: (item: T) => void;
+
+  // Toolbar
+  /**
+   * Default: shown when any toolbar control is available (search, density, column menu, row
+   * reorder, fullscreen, custom or bulk actions). Each control needs its handler.
+   */
+  showToolbar?: boolean;
+  /** Extra buttons at the end of the toolbar. */
+  toolbarActions?: ReactNode;
+  /** Replaces the search field while rows are selected, e.g. delete / export buttons. */
+  renderBulkActions?: (selectedIds: Set<RowId>) => ReactNode;
 
   // Loading / error / empty
   /** Blocking load: a spinner replaces the empty state, or dims the rows while refetching. */

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { ReactNode, useState } from 'react';
 import {
   View,
   TextInput,
@@ -27,14 +27,15 @@ import {
   useFullscreenOrientation,
 } from './hooks/useFullscreenOrientation';
 
+/** Each control appears only when its handler is passed. */
 interface TableToolbarProps<T> {
-  searchQuery: string;
-  onSearchChange: (text: string) => void;
+  searchQuery?: string;
+  onSearchChange?: (text: string) => void;
   density: Density;
-  onDensityChange: (d: Density) => void;
+  onDensityChange?: (d: Density) => void;
   columns: Column<T>[];
   visibleColumns: string[];
-  onToggleColumn: (key: string) => void;
+  onToggleColumn?: (key: string) => void;
   stickyColumns?: string[];
   onToggleSticky?: (key: string) => void;
   theme: TableTheme;
@@ -46,6 +47,10 @@ interface TableToolbarProps<T> {
   translations: TableTranslations;
   screenOrientation?: ScreenOrientationModule;
   onFullscreenChange?: (isFullscreen: boolean) => void;
+  /** Extra buttons after the built-in ones. */
+  actions?: ReactNode;
+  /** Replaces the search field while rows are selected. */
+  bulkActions?: ReactNode;
 }
 
 export function TableToolbar<T>({
@@ -66,6 +71,8 @@ export function TableToolbar<T>({
   translations,
   screenOrientation,
   onFullscreenChange,
+  actions,
+  bulkActions,
 }: TableToolbarProps<T>) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const {
@@ -83,28 +90,60 @@ export function TableToolbar<T>({
       standard: 'comfortable',
       comfortable: 'compact',
     };
-    onDensityChange(next[density]);
+    onDensityChange?.(next[density]);
+  };
+
+  const selectionBadge = (
+    <View style={styles.selectionBadge}>
+      <Text style={styles.selectionText}>{selectedCount}</Text>
+    </View>
+  );
+
+  const renderLeft = () => {
+    if (selectedCount > 0 && bulkActions) {
+      return (
+        <View style={styles.bulkBar}>
+          {selectionBadge}
+          <Text style={styles.bulkLabel} numberOfLines={1}>
+            {translations.selected}
+          </Text>
+          <View style={styles.bulkActions}>{bulkActions}</View>
+        </View>
+      );
+    }
+    if (onSearchChange) {
+      return (
+        <View style={styles.searchContainer}>
+          {selectedCount > 0 ? (
+            selectionBadge
+          ) : (
+            <Search size={20} color={theme.textSecondary} style={styles.searchIcon} />
+          )}
+          <TextInput
+            style={styles.input}
+            placeholder={selectedCount > 0 ? translations.selected : translations.searchPlaceholder}
+            placeholderTextColor={theme.textSecondary}
+            value={searchQuery ?? ''}
+            onChangeText={onSearchChange}
+          />
+        </View>
+      );
+    }
+    return (
+      <View style={styles.bulkBar}>
+        {selectedCount > 0 && (
+          <>
+            {selectionBadge}
+            <Text style={styles.bulkLabel}>{translations.selected}</Text>
+          </>
+        )}
+      </View>
+    );
   };
 
   return (
     <View style={styles.container}>
-      {/* SEARCH BAR */}
-      <View style={styles.searchContainer}>
-        {selectedCount > 0 ? (
-          <View style={styles.selectionBadge}>
-            <Text style={styles.selectionText}>{selectedCount}</Text>
-          </View>
-        ) : (
-          <Search size={20} color={theme.textSecondary} style={styles.searchIcon} />
-        )}
-        <TextInput
-          style={styles.input}
-          placeholder={selectedCount > 0 ? translations.selected : translations.searchPlaceholder}
-          placeholderTextColor={theme.textSecondary}
-          value={searchQuery}
-          onChangeText={onSearchChange}
-        />
-      </View>
+      {renderLeft()}
 
       {/* ACTION BUTTONS */}
       <View style={styles.actions}>
@@ -141,19 +180,23 @@ export function TableToolbar<T>({
           </TouchableOpacity>
         )}
 
-        {/* Density Toggle */}
-        <TouchableOpacity onPress={cycleDensity} style={styles.iconButton} activeOpacity={0.7}>
-          <Scaling size={20} color={theme.text} />
-        </TouchableOpacity>
+        {onDensityChange && (
+          <TouchableOpacity onPress={cycleDensity} style={styles.iconButton} activeOpacity={0.7}>
+            <Scaling size={20} color={theme.text} />
+          </TouchableOpacity>
+        )}
 
-        {/* Column Visibility Toggle */}
-        <TouchableOpacity
-          onPress={() => setIsMenuOpen(true)}
-          style={styles.iconButton}
-          activeOpacity={0.7}
-        >
-          <Eye size={20} color={theme.text} />
-        </TouchableOpacity>
+        {onToggleColumn && (
+          <TouchableOpacity
+            onPress={() => setIsMenuOpen(true)}
+            style={styles.iconButton}
+            activeOpacity={0.7}
+          >
+            <Eye size={20} color={theme.text} />
+          </TouchableOpacity>
+        )}
+
+        {actions}
       </View>
 
       {/* COLUMN VISIBILITY MODAL */}
@@ -200,7 +243,7 @@ export function TableToolbar<T>({
 
                     <Switch
                       value={visibleColumns.includes(col.key as string)}
-                      onValueChange={() => onToggleColumn(col.key as string)}
+                      onValueChange={() => onToggleColumn?.(col.key as string)}
                       trackColor={{
                         false: theme.border,
                         true: theme.primaryLight,
@@ -343,6 +386,25 @@ const createStyles = (theme: TableTheme) =>
     },
     pinActive: {
       backgroundColor: theme.primary, // Indigo 600
+    },
+    bulkBar: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      minHeight: 44,
+      gap: 4,
+    },
+    bulkLabel: {
+      color: theme.text,
+      fontSize: 14,
+      fontFamily: theme.fontFamily.medium,
+    },
+    bulkActions: {
+      flex: 1,
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+      alignItems: 'center',
+      gap: 8,
     },
     selectionBadge: {
       backgroundColor: theme.primary,

@@ -448,3 +448,65 @@ describe('ModernTable column resize', () => {
     expect(onColumnResize).toHaveBeenLastCalledWith('name', 130);
   });
 });
+
+describe('ModernTable toolbar slots', () => {
+  const columns: Column<Row>[] = [{ key: 'name', title: 'Name' }];
+
+  it('shows only the controls whose handlers are passed', () => {
+    render(<ModernTable data={rows} columns={columns} onSearchChange={jest.fn()} />);
+    expect(screen.getByPlaceholderText('Search...')).toBeTruthy();
+  });
+
+  it('hides the toolbar with showToolbar={false}', () => {
+    render(
+      <ModernTable data={rows} columns={columns} onSearchChange={jest.fn()} showToolbar={false} />
+    );
+    expect(screen.queryByPlaceholderText('Search...')).toBeNull();
+  });
+
+  it('renders custom toolbar actions', () => {
+    render(<ModernTable data={rows} columns={columns} toolbarActions={<Text>Export</Text>} />);
+    expect(screen.getByText('Export')).toBeTruthy();
+  });
+
+  it('swaps search for bulk actions while rows are selected', () => {
+    const renderBulkActions = (ids: Set<number | string>) => <Text>Delete {ids.size}</Text>;
+    const { rerender } = render(
+      <ModernTable
+        data={rows}
+        columns={columns}
+        onSearchChange={jest.fn()}
+        renderBulkActions={renderBulkActions}
+        selectedIds={new Set()}
+      />
+    );
+    expect(screen.getByPlaceholderText('Search...')).toBeTruthy();
+    expect(screen.queryByText('Delete 2')).toBeNull();
+
+    rerender(
+      <ModernTable
+        data={rows}
+        columns={columns}
+        onSearchChange={jest.fn()}
+        renderBulkActions={renderBulkActions}
+        selectedIds={new Set([1, 2])}
+      />
+    );
+    expect(screen.getByText('Delete 2')).toBeTruthy();
+    expect(screen.queryByPlaceholderText('Search...')).toBeNull();
+  });
+
+  it('shows a mixed header checkbox for a partial selection', () => {
+    render(
+      <ModernTable
+        data={rows}
+        columns={columns}
+        enableSelection
+        selectedIds={new Set([1])}
+        isSomeSelected
+      />
+    );
+    const [header] = screen.getAllByRole('checkbox');
+    expect(header.props.accessibilityState).toMatchObject({ checked: 'mixed' });
+  });
+});
