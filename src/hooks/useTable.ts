@@ -13,6 +13,8 @@ import { nextSortDirection, sortRows, SortState } from '../core/sort';
 import { buildSearchIndex, filterRows, isEmptyFilterValue, searchRows } from '../core/filter';
 import { clampPage, getTotalPages, paginateRows } from '../core/pagination';
 import { getSelectionState, toggleId, toggleIds } from '../core/selection';
+import { reconcileOrder } from '../core/columns';
+import { CsvOptions, toCsv } from '../core/csv';
 import { useDebouncedValue } from './useDebouncedValue';
 import { useStableCallback } from './useStableCallback';
 
@@ -23,6 +25,21 @@ export interface TableState {
   filters: Record<string, FilterValue>;
   /** 1-based. */
   page: number;
+  pageSize: number;
+}
+
+/**
+ * User layout choices worth persisting (e.g. in AsyncStorage). Visibility and pinning are
+ * stored as overrides, so columns added in a later app version still get their defaults.
+ */
+export interface TablePreferences {
+  /** Column key → visible, where it differs from the column's `hidden` default. */
+  columnVisibility: Record<string, boolean>;
+  /** Column key → pinned, where it differs from the column's `isSticky` default. */
+  columnPinning: Record<string, boolean>;
+  columnOrder: string[];
+  columnWidths: Record<string, number>;
+  density: Density;
   pageSize: number;
 }
 
@@ -54,7 +71,14 @@ export interface UseTableOptions<T> {
   searchDebounceMs?: number;
   /** Called on mount and whenever `state` changes. */
   onStateChange?: (state: TableState) => void;
+  /** Restore saved preferences (see `table.preferences`). */
+  initialPreferences?: Partial<TablePreferences>;
+  /** Called on mount and whenever `preferences` change — persist them here. */
+  onPreferencesChange?: (preferences: TablePreferences) => void;
 }
+
+/** Which rows `getCsv` exports. */
+export type CsvRows = 'filtered' | 'page' | 'selected' | 'all';
 
 const DEFAULT_PAGE_SIZE_OPTIONS = [10, 20, 50];
 const defaultGetRowId = (row: object) => (row as TableRow).id;
@@ -92,7 +116,11 @@ type TablePropKeys =
   | 'onToggleAll'
   | 'isAllSelected'
   | 'isSomeSelected'
-  | 'pagination';
+  | 'pagination'
+  | 'columnOrder'
+  | 'onColumnReorder'
+  | 'columnWidths'
+  | 'onColumnResize';
 
 /** What `getTableProps()` returns — spread it onto `ModernTable`. */
 export type TableProps<T extends object> = Pick<ModernTableBaseProps<T>, TablePropKeys> &
@@ -118,17 +146,30 @@ function useTableImpl<T extends object>(
   } = opts;
   const getRowId = getRowIdOption ?? defaultGetRowId;
 
+  const initialPreferences = opts.initialPreferences;
   const [itemsPerPage, setItemsPerPageState] = useState(
-    () => initialState?.pageSize ?? opts.pageSize ?? 10
+    () => initialPreferences?.pageSize ?? initialState?.pageSize ?? opts.pageSize ?? 10
   );
   const [searchQuery, setSearchQuery] = useState(() => initialState?.searchQuery ?? '');
   const [selectedIds, setSelectedIds] = useState<Set<RowId>>(() => new Set());
   const [filters, setFilters] = useState<Record<string, FilterValue>>(
     () => initialState?.filters ?? {}
   );
-  const [density, setDensity] = useState<Density>(() => opts.initialDensity ?? 'standard');
-  const [visibilityOverrides, setVisibilityOverrides] = useState<Record<string, boolean>>({});
-  const [stickyOverrides, setStickyOverrides] = useState<Record<string, boolean>>({});
+  const [density, setDensity] = useState<Density>(
+    () => initialPreferences?.density ?? opts.initialDensity ?? 'standard'
+  );
+  const [visibilityOverrides, setVisibilityOverrides] = useState<Record<string, boolean>>(
+    () => initialPreferences?.columnVisibility ?? {}
+  );
+  const [stickyOverrides, setStickyOverrides] = useState<Record<string, boolean>>(
+    () => initialPreferences?.columnPinning ?? {}
+  );
+  const [storedColumnOrder, setColumnOrder] = useState<string[]>(
+    () => initialPreferences?.columnOrder ?? []
+  );
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>(
+    () => initialPreferences?.columnWidths ?? {}
+  );
   const [sortConfig, setSortConfig] = useState<SortState>(
     () => initialState?.sort ?? { key: '', direction: null }
   );
@@ -156,6 +197,14 @@ function useTableImpl<T extends object>(
   const stickyColumns = useMemo(
     () => resolveColumnFlags(columns, stickyOverrides, isStickyByDefault),
     [columns, stickyOverrides]
+  );
+  const columnOrder = useMemo(
+    () =>
+      reconcileOrder(
+        storedColumnOrder,
+        columns.map(c => c.key as string)
+      ),
+    [storedColumnOrder, columns]
   );
 
   const localeKey = Array.isArray(locale) ? locale.join(',') : (locale ?? '');
@@ -302,6 +351,67 @@ function useTableImpl<T extends object>(
   const isAllSelected = selection === 'all';
   const isSomeSelected = selection === 'some';
 
+  const setColumnWidth = useCallback((key: string, width: number) => {
+    setColumnWidths(prev => ({ ...prev, [key]: width }));
+  }, []);
+
+  const preferences = useMemo<TablePreferences>(
+    () => ({
+      columnVisibility: visibilityOverrides,
+      columnPinning: stickyOverrides,
+      columnOrder,
+      columnWidths,
+      density,
+      pageSize: itemsPerPage,
+    }),
+    [visibilityOverrides, stickyOverrides, columnOrder, columnWidths, density, itemsPerPage]
+  );
+
+  const notifyPreferencesChange = useStableCallback(opts.onPreferencesChange);
+  useEffect(() => {
+    notifyPreferencesChange(preferences);
+  }, [preferences, notifyPreferencesChange]);
+
+  /** Apply saved preferences later, e.g. after they finish loading from storage. */
+  const setPreferences = useCallback(
+    (next: Partial<TablePreferences>) => {
+      if (next.columnVisibility) setVisibilityOverrides(next.columnVisibility);
+      if (next.columnPinning) setStickyOverrides(next.columnPinning);
+      if (next.columnOrder) setColumnOrder(next.columnOrder);
+      if (next.columnWidths) setColumnWidths(next.columnWidths);
+      if (next.density) setDensity(next.density);
+      if (next.pageSize) {
+        setItemsPerPageState(next.pageSize);
+        setPageState({ page: 1, query: effectiveQuery });
+      }
+    },
+    [effectiveQuery]
+  );
+
+  /** CSV of the visible columns in on-screen order. Default rows: everything matching the filters. */
+  const getCsv = useCallback(
+    (options: CsvOptions<T> & { rows?: CsvRows } = {}) => {
+      const { rows: scope = 'filtered', ...csvOptions } = options;
+      const visible = new Set(visibleColumns);
+      const position = new Map(columnOrder.map((key, index) => [key, index]));
+      const exportColumns = columns
+        .filter(c => visible.has(c.key as string))
+        .sort(
+          (a, b) => (position.get(a.key as string) ?? 0) - (position.get(b.key as string) ?? 0)
+        );
+      const rows =
+        scope === 'page'
+          ? paginatedData
+          : scope === 'all'
+            ? data
+            : scope === 'selected'
+              ? sortedData.filter(row => selectedIds.has(getRowId(row)))
+              : sortedData;
+      return toCsv(rows, exportColumns, csvOptions);
+    },
+    [visibleColumns, columnOrder, columns, paginatedData, data, sortedData, selectedIds, getRowId]
+  );
+
   const getTableProps = useCallback(
     (): TableProps<T> =>
       ({
@@ -326,6 +436,10 @@ function useTableImpl<T extends object>(
         onToggleAll: toggleAllSelection,
         isAllSelected,
         isSomeSelected,
+        columnOrder,
+        onColumnReorder: setColumnOrder,
+        columnWidths,
+        onColumnResize: setColumnWidth,
         pagination: showPagination
           ? {
               currentPage,
@@ -358,6 +472,9 @@ function useTableImpl<T extends object>(
       isAllSelected,
       isSomeSelected,
       showPagination,
+      columnOrder,
+      columnWidths,
+      setColumnWidth,
       currentPage,
       totalPages,
       itemsPerPage,
@@ -412,6 +529,17 @@ function useTableImpl<T extends object>(
     // Sticky
     stickyColumns,
     toggleStickyColumn,
+
+    // Column layout
+    columnOrder,
+    setColumnOrder,
+    columnWidths,
+    setColumnWidth,
+
+    // Persistence / export
+    preferences,
+    setPreferences,
+    getCsv,
 
     /** Spread onto `<ModernTable columns={columns} {...getTableProps()} />` */
     getTableProps,

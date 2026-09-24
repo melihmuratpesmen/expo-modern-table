@@ -1,6 +1,13 @@
 export { ModernTable } from './ModernTable';
 export { useTable } from './hooks/useTable';
-export type { UseTableResult, UseTableOptions, TableState, TableProps } from './hooks/useTable';
+export type {
+  UseTableResult,
+  UseTableOptions,
+  TableState,
+  TableProps,
+  TablePreferences,
+  CsvRows,
+} from './hooks/useTable';
 export { useTableTheme } from './hooks/useTableTheme';
 export type { ScreenOrientationModule } from './hooks/useFullscreenOrientation';
 export { defaultIcons } from './icons';
@@ -40,3 +47,5 @@ export {
   getTotalPages,
 } from './core';
 export type { SortState } from './core';
+export { toCsv } from './core/csv';
+export type { CsvOptions } from './core/csv';

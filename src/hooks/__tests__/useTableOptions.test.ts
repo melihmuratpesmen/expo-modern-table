@@ -186,3 +186,85 @@ describe('useTable column options', () => {
     expect(result.current.sortedData.map(p => p.id)).toEqual([2, 1]);
   });
 });
+
+describe('useTable preferences', () => {
+  const prefColumns: Column<Row>[] = [
+    { key: 'name', title: 'Name' },
+    { key: 'score', title: 'Score', hidden: true },
+  ];
+
+  it('reports preferences and restores them', () => {
+    const onPreferencesChange = jest.fn();
+    const { result } = renderHook(() =>
+      useTable(makeRows(3), prefColumns, { onPreferencesChange })
+    );
+    act(() => result.current.toggleColumnVisibility('score'));
+    act(() => result.current.getTableProps().onColumnReorder?.(['score', 'name']));
+    act(() => result.current.getTableProps().onColumnResize?.('name', 140));
+    act(() => result.current.setDensity('compact'));
+
+    const saved = onPreferencesChange.mock.calls.at(-1)![0];
+    expect(saved).toEqual({
+      columnVisibility: { score: true },
+      columnPinning: {},
+      columnOrder: ['score', 'name'],
+      columnWidths: { name: 140 },
+      density: 'compact',
+      pageSize: 10,
+    });
+
+    const restored = renderHook(() =>
+      useTable(makeRows(3), prefColumns, { initialPreferences: saved })
+    );
+    const props = restored.result.current.getTableProps();
+    expect(props.visibleColumns).toEqual(['name', 'score']);
+    expect(props.columnOrder).toEqual(['score', 'name']);
+    expect(props.columnWidths).toEqual({ name: 140 });
+    expect(props.density).toBe('compact');
+  });
+
+  it('gives columns added later their defaults', () => {
+    const { result } = renderHook(() =>
+      useTable(makeRows(3), [...prefColumns, { key: 'extra', title: 'Extra' }], {
+        initialPreferences: { columnVisibility: { score: true }, columnOrder: ['score', 'name'] },
+      })
+    );
+    expect(result.current.visibleColumns).toEqual(['name', 'score', 'extra']);
+    expect(result.current.columnOrder).toEqual(['score', 'name', 'extra']);
+  });
+
+  it('applies preferences loaded later with setPreferences', () => {
+    const { result } = renderHook(() => useTable(makeRows(30), prefColumns));
+    act(() => result.current.setCurrentPage(2));
+    act(() => result.current.setPreferences({ pageSize: 20, columnPinning: { name: true } }));
+    expect(result.current.itemsPerPage).toBe(20);
+    expect(result.current.currentPage).toBe(1);
+    expect(result.current.stickyColumns).toEqual(['name']);
+  });
+});
+
+describe('useTable getCsv', () => {
+  const csvColumns: Column<Row>[] = [
+    { key: 'name', title: 'Name' },
+    { key: 'score', title: 'Score', filterConfig: { type: 'number-range' } },
+  ];
+
+  it('exports visible columns in on-screen order, filtered and sorted', () => {
+    const { result } = renderHook(() => useTable(makeRows(5), csvColumns, 2));
+    act(() => result.current.setColumnOrder(['score', 'name']));
+    act(() => result.current.setColumnFilter('score', { min: 2 }));
+    act(() => result.current.handleSort('score', 'desc'));
+    expect(result.current.getCsv({ lineEnding: '\n' })).toBe(
+      'Score,Name\n4,Row 5\n3,Row 4\n2,Row 3'
+    );
+  });
+
+  it('exports the page or the selection', () => {
+    const { result } = renderHook(() => useTable(makeRows(5), csvColumns, 2));
+    expect(result.current.getCsv({ rows: 'page', includeHeader: false, lineEnding: '|' })).toBe(
+      'Row 1,0|Row 2,1'
+    );
+    act(() => result.current.toggleSelection(4));
+    expect(result.current.getCsv({ rows: 'selected', includeHeader: false })).toBe('Row 4,3');
+  });
+});
