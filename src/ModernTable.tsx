@@ -11,7 +11,11 @@ import {
   useWindowDimensions,
   Platform,
 } from 'react-native';
-import { GestureDetector, ScrollView as GHScrollView } from 'react-native-gesture-handler';
+import {
+  GestureDetector,
+  GestureType,
+  ScrollView as GHScrollView,
+} from 'react-native-gesture-handler';
 import { FlashList, ListRenderItemInfo } from '@shopify/flash-list';
 import {
   ChevronUp,
@@ -80,6 +84,12 @@ const darkenHex = (color: string | undefined, amount: number) => {
 };
 
 const AnimatedGHScrollView = Animated.createAnimatedComponent(GHScrollView);
+
+type PositionedColumn<T> = Column<T> & {
+  offsetX: number;
+  stickyOffset: number;
+  isSticky?: boolean;
+};
 
 export function ModernTable<T extends TableRow>({
   data,
@@ -230,7 +240,7 @@ export function ModernTable<T extends TableRow>({
   const listIdentityKey = `${sortColumn ?? 'nosort'}-${sortDirection ?? 'none'}-${columnOrder.join('|')}`;
 
   // --- EDIT LOGIC ---
-  const handleStartEdit = (item: T, key: string, value: any) => {
+  const handleStartEdit = (item: T, key: string, value: unknown) => {
     setEditingCell({ id: item.id, key });
     setTempValue(String(value));
   };
@@ -244,7 +254,7 @@ export function ModernTable<T extends TableRow>({
   };
 
   // --- STICKY STYLE GENERATOR ---
-  const getStickyStyle = (col: any, index: number, backgroundColor: string) => {
+  const getStickyStyle = (col: PositionedColumn<T>, index: number, backgroundColor: string) => {
     if (!col.isSticky) return {};
 
     const threshold = col.offsetX - col.stickyOffset;
@@ -289,7 +299,7 @@ export function ModernTable<T extends TableRow>({
     type: 'header' | 'row',
     item?: T,
     bgColor: string = tableTheme.background,
-    dragGesture?: any // Using any to avoid complex type import issues for now, or use ReturnType if imported
+    dragGesture?: GestureType
   ) => {
     const isHeader = type === 'header';
 
@@ -369,7 +379,7 @@ export function ModernTable<T extends TableRow>({
   };
 
   const renderHeaderCell = useCallback(
-    (col: Column<T> & { offsetX: number; isSticky?: boolean }, index: number) => {
+    (col: PositionedColumn<T>, index: number) => {
       const stickyStyle = getStickyStyle(col, index, tableTheme.headerBackground);
       const isSortable = !!onSort;
       const isActiveSort = sortColumn === col.key;
@@ -520,7 +530,7 @@ export function ModernTable<T extends TableRow>({
       isLastInGroup = currentGroup !== nextGroup;
     }
 
-    const renderRowContent = (dragGesture?: any) => {
+    const renderRowContent = (dragGesture?: GestureType) => {
       const RowComponent = onRowPress ? TouchableOpacity : View;
       return (
         <RowComponent
@@ -690,7 +700,10 @@ export function ModernTable<T extends TableRow>({
                   renderItem={renderRow}
                   keyExtractor={item => String(item.id)}
                   contentContainerStyle={styles.listContent}
-                  // @ts-ignore: estimatedItemSize missing in types
+                  // FlashList v1 needs estimatedItemSize; v2 dropped it from its types. A
+                  // ts-expect-error would break type-checking against v1, so ignore instead.
+                  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+                  // @ts-ignore
                   estimatedItemSize={currentRowHeight}
                   scrollEnabled={scrollEnabled}
                   ListEmptyComponent={
