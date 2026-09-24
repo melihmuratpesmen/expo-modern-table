@@ -43,7 +43,5 @@ export function matchesSearchFields(
 ): boolean {
   const normalizedQuery = normalizeSearchText(query);
   if (!normalizedQuery) return true;
-  return fields.some(field =>
-    normalizeSearchText(String(field ?? '')).includes(normalizedQuery)
-  );
+  return fields.some(field => normalizeSearchText(String(field ?? '')).includes(normalizedQuery));
 }

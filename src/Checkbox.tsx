@@ -1,7 +1,7 @@
 // components/Checkbox.tsx
-import React from "react";
-import { TouchableOpacity, StyleSheet } from "react-native";
-import { Check, Minus } from "lucide-react-native";
+import React from 'react';
+import { TouchableOpacity, StyleSheet } from 'react-native';
+import { Check, Minus } from 'lucide-react-native';
 
 interface CheckboxProps {
   checked: boolean;
@@ -15,8 +15,8 @@ export function Checkbox({
   checked,
   indeterminate,
   onPress,
-  activeColor = "#4f46e5",
-  borderColor = "#cbd5e1",
+  activeColor = '#4f46e5',
+  borderColor = '#cbd5e1',
 }: CheckboxProps) {
   return (
     <TouchableOpacity
@@ -26,7 +26,7 @@ export function Checkbox({
         styles.container,
         checked || indeterminate
           ? { backgroundColor: activeColor, borderColor: activeColor }
-          : { backgroundColor: "transparent", borderColor: borderColor },
+          : { backgroundColor: 'transparent', borderColor: borderColor },
       ]}
     >
       {indeterminate ? (
@@ -44,14 +44,14 @@ const styles = StyleSheet.create({
     height: 20,
     borderRadius: 6, // Softer corners
     borderWidth: 2,
-    justifyContent: "center",
-    alignItems: "center",
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   active: {
     // backgroundColor and borderColor handled inline for dynamic support
   },
   inactive: {
-    backgroundColor: "#ffffff",
+    backgroundColor: '#ffffff',
     // borderColor handled inline
   },
 });

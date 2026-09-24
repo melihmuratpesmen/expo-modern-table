@@ -762,9 +762,7 @@ export function ModernTable<T extends TableRow>({
               >
                 <ChevronLeft
                   size={20}
-                  color={
-                    pagination.currentPage === 1 ? tableTheme.textSecondary : tableTheme.text
-                  }
+                  color={pagination.currentPage === 1 ? tableTheme.textSecondary : tableTheme.text}
                 />
               </TouchableOpacity>
               <TouchableOpacity

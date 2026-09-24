@@ -1,12 +1,12 @@
-import React from "react";
-import { Gesture } from "react-native-gesture-handler";
+import React from 'react';
+import { Gesture } from 'react-native-gesture-handler';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withSpring,
   runOnJS,
-} from "react-native-reanimated";
-import { TableTheme } from "./theme/tokens";
+} from 'react-native-reanimated';
+import { TableTheme } from './theme/tokens';
 
 export interface DraggableRowChildrenProps {
   dragGesture: ReturnType<typeof Gesture.Pan>;
@@ -39,10 +39,10 @@ export function DraggableRow({
       isDragging.value = true;
       zIndex.value = 100;
     })
-    .onUpdate((e) => {
+    .onUpdate(e => {
       translationY.value = e.translationY;
     })
-    .onEnd((e) => {
+    .onEnd(e => {
       isDragging.value = false;
       zIndex.value = 1;
 
@@ -63,12 +63,10 @@ export function DraggableRow({
     shadowOpacity: isDragging.value ? 0.2 : 0,
     shadowRadius: 10,
     elevation: isDragging.value ? 5 : 0,
-    backgroundColor: isDragging.value ? theme.surfaceHighlight : "transparent",
+    backgroundColor: isDragging.value ? theme.surfaceHighlight : 'transparent',
   }));
 
   return (
-    <Animated.View style={[animatedStyle]}>
-      {children({ dragGesture: panGesture })}
-    </Animated.View>
+    <Animated.View style={[animatedStyle]}>{children({ dragGesture: panGesture })}</Animated.View>
   );
 }

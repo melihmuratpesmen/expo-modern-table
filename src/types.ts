@@ -14,11 +14,7 @@ export interface FilterConfig {
   options?: string[];
 }
 
-export type FilterValue =
-  | string
-  | boolean
-  | { min?: number; max?: number }
-  | undefined;
+export type FilterValue = string | boolean | { min?: number; max?: number } | undefined;
 
 export interface TableTranslations {
   searchPlaceholder: string;

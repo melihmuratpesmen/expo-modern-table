@@ -1,13 +1,13 @@
-import React from "react";
-import { StyleSheet } from "react-native";
-import { GestureDetector, Gesture } from "react-native-gesture-handler";
+import React from 'react';
+import { StyleSheet } from 'react-native';
+import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withSpring,
   runOnJS,
-} from "react-native-reanimated";
-import { TableTheme } from "./theme/tokens";
+} from 'react-native-reanimated';
+import { TableTheme } from './theme/tokens';
 
 interface DraggableHeaderProps {
   title: string;
@@ -39,10 +39,10 @@ export function DraggableHeader({
       zIndex.value = 100;
       scale.value = 1.05;
     })
-    .onUpdate((e) => {
+    .onUpdate(e => {
       translationX.value = e.translationX;
     })
-    .onEnd((e) => {
+    .onEnd(e => {
       isDragging.value = false;
       zIndex.value = 1;
       scale.value = 1;
@@ -83,7 +83,7 @@ export function DraggableHeader({
 
 const styles = StyleSheet.create({
   container: {
-    justifyContent: "center",
+    justifyContent: 'center',
     // positioning will be handled by the parent list layout,
     // but the transform moves it relative to that slot
   },
