@@ -1,5 +1,11 @@
 import { Column } from '../../types';
-import { filterRows, isEmptyFilterValue, matchesFilter, searchRows } from '../filter';
+import {
+  buildSearchIndex,
+  filterRows,
+  isEmptyFilterValue,
+  matchesFilter,
+  searchRows,
+} from '../filter';
 
 describe('isEmptyFilterValue', () => {
   it.each([undefined, null, '', {}, { min: undefined }, { min: NaN, max: NaN }])(
@@ -94,5 +100,20 @@ describe('searchRows', () => {
 
   it('returns everything for a blank query', () => {
     expect(searchRows(rows, '   ', ['name'])).toHaveLength(3);
+  });
+});
+
+describe('buildSearchIndex', () => {
+  it('gives the same results as searching without an index', () => {
+    const keys = ['name', 'group', 'score', 'meta'];
+    const index = buildSearchIndex(rows, keys);
+    for (const query of ['isil', 'a', '75', 'secret', 'OMER', '', 'zzz']) {
+      expect(searchRows(rows, query, keys, index)).toEqual(searchRows(rows, query, keys));
+    }
+  });
+
+  it('does not match across field boundaries', () => {
+    const index = buildSearchIndex([{ a: 'ab', b: 'cd' }], ['a', 'b']);
+    expect(searchRows([{ a: 'ab', b: 'cd' }], 'bc', ['a', 'b'], index)).toEqual([]);
   });
 });

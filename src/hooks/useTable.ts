@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useDeferredValue } from 'react';
 import {
   SortDirection,
   Column,
@@ -9,7 +9,7 @@ import {
   ModernTableProps,
 } from '../types';
 import { nextSortDirection, sortRows, SortState } from '../core/sort';
-import { filterRows, isEmptyFilterValue, searchRows } from '../core/filter';
+import { buildSearchIndex, filterRows, isEmptyFilterValue, searchRows } from '../core/filter';
 import { clampPage, getTotalPages, paginateRows } from '../core/pagination';
 import { getSelectionState, toggleId, toggleIds } from '../core/selection';
 
@@ -51,9 +51,19 @@ export function useTable<T extends TableRow>(
     [columns, stickyOverrides]
   );
 
+  // The input shows `searchQuery` immediately; filtering follows at lower priority so typing
+  // stays responsive on large data sets.
+  const deferredQuery = useDeferredValue(searchQuery);
+  const isSearching = deferredQuery.trim() !== '';
+  const searchIndex = useMemo(
+    () => (isSearching ? buildSearchIndex(data, visibleColumns) : undefined),
+    [isSearching, data, visibleColumns]
+  );
+
   const filteredData = useMemo(
-    () => filterRows(searchRows(data, searchQuery, visibleColumns), filters, columns),
-    [data, searchQuery, visibleColumns, filters, columns]
+    () =>
+      filterRows(searchRows(data, deferredQuery, visibleColumns, searchIndex), filters, columns),
+    [data, deferredQuery, visibleColumns, searchIndex, filters, columns]
   );
 
   const sortedData = useMemo(() => sortRows(filteredData, sortConfig), [filteredData, sortConfig]);

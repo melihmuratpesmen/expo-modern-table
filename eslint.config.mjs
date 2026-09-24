@@ -18,11 +18,6 @@ export default tseslint.config(
         'error',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
       ],
-      // TODO(roadmap): back to 'error' once state derivation (phase 1–2) and the
-      // Reanimated scroll migration (phase 4) land.
-      'react-hooks/set-state-in-effect': 'warn',
-      'react-hooks/refs': 'warn',
-      'react-hooks/immutability': 'warn',
     },
   },
   {

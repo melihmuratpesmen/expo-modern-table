@@ -46,12 +46,22 @@
   to report errors inside the package).
 - `sideEffects: false`; tests are excluded from the tarball.
 
+### Performance
+
+- Rows are a memoized component: toggling a checkbox or editing a cell re-renders that
+  row only, not every visible row. New inline `onRowPress` / `onToggleRow` / `onRowChange` /
+  `onRowReorder` functions no longer re-render rows (they are called through stable wrappers).
+- Sticky-column interpolations are created once per column instead of per cell per render.
+- Global search uses a pre-normalized index and `useDeferredValue`, so typing stays responsive
+  on large data sets.
+
 ### Added
 
 - `screenOrientation`, `onFullscreenChange` props.
 - `useTable`: `isSomeSelected`, `clearSelection`.
 - Theme tokens (optional): `markedBackground`, `markedHeaderBackground`, `overlay`.
-- ESLint, Prettier, Jest (96 tests) and GitHub Actions CI.
+- ESLint (incl. React Compiler rules), Prettier, Jest (102 tests) and GitHub Actions CI.
+- Example app runs on web (`npm run example:web`).
 
 ## 0.1.2
 

@@ -90,6 +90,8 @@ Fullscreen = landscape lock only; hiding app chrome is left to `onFullscreenChan
 - Column pin presets / persistence (AsyncStorage)
 - CSV / export
 - Virtualized horizontal sticky improvements
+- iOS list remount on sort (`key={listIdentityKey}`, see KNOWN_ISSUES): re-check on device with
+  FlashList v2 whether it is still needed — it resets scroll position on every sort
 
 
 ## When picking work up
@@ -110,3 +112,5 @@ Fullscreen = landscape lock only; hiding app chrome is left to `onFullscreenChan
 | Tooling: ESLint, Prettier, Jest, CI | `0.2.0` | React Compiler lint rules partly downgraded to warnings until phase 4 |
 | Pure core (`src/core`) + tests | `0.2.0` | sort / filter / search / paginate / selection / reorder / edit |
 | Bug-fix pass | `0.2.0` | See CHANGELOG `0.2.0` |
+| Compiled package (builder-bob, exports) | `0.2.0` | Strict consumers no longer type-check `src` |
+| Row memoization, shared sticky interpolations, indexed search | `0.2.0` | Kept RN `Animated` (native driver) — a Reanimated migration wasn't needed |

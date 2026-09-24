@@ -62,13 +62,39 @@ export function filterRows<T>(
   return rows.filter(row => configs.every(f => matchesFilter(row[f.key], f.value, f.config)));
 }
 
+/** Joins normalized fields; never produced by `normalizeSearchText` for typed queries. */
+const FIELD_SEPARATOR = '\u0000';
+
+/**
+ * Pre-normalizes the searchable text of every row, so each keystroke is a plain substring
+ * check instead of re-normalizing every field. Rebuild when rows or keys change.
+ */
+export function buildSearchIndex<T>(rows: readonly T[], keys: readonly string[]): string[] {
+  return rows.map(row =>
+    keys
+      .map(key => {
+        const value = row[key as keyof T];
+        return isPrimitive(value) ? normalizeSearchText(String(value)) : '';
+      })
+      .join(FIELD_SEPARATOR)
+  );
+}
+
 /**
  * Global search over the given column keys. Only primitive cell values are searched —
- * objects, arrays and functions are skipped.
+ * objects, arrays and functions are skipped. Pass an index from `buildSearchIndex` (built
+ * from the same rows and keys) to avoid normalizing fields on every call.
  */
-export function searchRows<T>(rows: readonly T[], query: string, keys: readonly string[]): T[] {
+export function searchRows<T>(
+  rows: readonly T[],
+  query: string,
+  keys: readonly string[],
+  index?: readonly string[]
+): T[] {
   const normalizedQuery = normalizeSearchText(query);
   if (!normalizedQuery) return [...rows];
+
+  if (index) return rows.filter((_, i) => index[i].includes(normalizedQuery));
 
   return rows.filter(row =>
     keys.some(key => {

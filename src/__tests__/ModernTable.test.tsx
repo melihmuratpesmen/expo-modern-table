@@ -2,6 +2,7 @@ import React from 'react';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { fireGestureHandler, getByGestureTestId } from 'react-native-gesture-handler/jest-utils';
 import { State } from 'react-native-gesture-handler';
+import { Text } from 'react-native';
 import { ModernTable } from '../ModernTable';
 import { Column } from '../types';
 
@@ -221,5 +222,50 @@ describe('ModernTable toolbar', () => {
       />
     );
     expect(screen.getByLabelText('Fullscreen')).toBeTruthy();
+  });
+});
+
+describe('ModernTable row rendering', () => {
+  const setup = () => {
+    const renderName = jest.fn((item: Row) => <Text>{item.name}</Text>);
+    const columns: Column<Row>[] = [{ key: 'name', title: 'Name', renderCell: renderName }];
+    const base = { data: rows, columns, enableSelection: true, onToggleRow: jest.fn() };
+    const view = render(<ModernTable {...base} selectedIds={new Set()} />);
+    renderName.mockClear();
+    return { renderName, base, view };
+  };
+
+  it('re-renders only the row whose selection changed', () => {
+    const { renderName, base, view } = setup();
+    view.rerender(<ModernTable {...base} selectedIds={new Set([2])} />);
+    expect(renderName.mock.calls.map(([item]) => item.id)).toEqual([2]);
+  });
+
+  it('does not re-render rows for new inline event handlers', () => {
+    const { renderName, base, view } = setup();
+    const selectedIds = new Set<number>();
+    view.rerender(<ModernTable {...base} selectedIds={selectedIds} onRowPress={() => {}} />);
+    renderName.mockClear();
+    view.rerender(<ModernTable {...base} selectedIds={selectedIds} onRowPress={() => {}} />);
+    expect(renderName).not.toHaveBeenCalled();
+  });
+
+  it('re-renders rows when a render-affecting prop changes', () => {
+    const { renderName, base, view } = setup();
+    view.rerender(
+      <ModernTable {...base} selectedIds={new Set()} getRowStyle={() => ({ opacity: 0.5 })} />
+    );
+    expect(renderName).toHaveBeenCalledTimes(rows.length);
+  });
+
+  it('calls the latest onRowPress', () => {
+    const first = jest.fn();
+    const second = jest.fn();
+    const columns: Column<Row>[] = [{ key: 'name', title: 'Name' }];
+    const view = render(<ModernTable data={rows} columns={columns} onRowPress={first} />);
+    view.rerender(<ModernTable data={rows} columns={columns} onRowPress={second} />);
+    fireEvent.press(screen.getByText('Ali'));
+    expect(first).not.toHaveBeenCalled();
+    expect(second).toHaveBeenCalledWith(rows[0]);
   });
 });

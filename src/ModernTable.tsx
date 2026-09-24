@@ -1,21 +1,6 @@
-import React, { useRef, useState, useMemo } from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  Animated,
-  StyleProp,
-  ViewStyle,
-  TextInput,
-  Platform,
-  LayoutChangeEvent,
-} from 'react-native';
-import {
-  GestureDetector,
-  GestureType,
-  ScrollView as GHScrollView,
-} from 'react-native-gesture-handler';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
+import { View, Text, TouchableOpacity, Animated, Platform, LayoutChangeEvent } from 'react-native';
+import { ScrollView as GHScrollView } from 'react-native-gesture-handler';
 import { FlashList, ListRenderItemInfo } from '@shopify/flash-list';
 import {
   ChevronUp,
@@ -24,65 +9,34 @@ import {
   ChevronRight,
   ListFilter,
   Hand,
-  AlignJustify,
 } from 'lucide-react-native';
-import {
-  ModernTableProps,
-  Column,
-  Density,
-  RowId,
-  SelectionMode,
-  TableRow,
-  DEFAULT_TRANSLATIONS,
-} from './types';
+import { ModernTableProps, SelectionMode, TableRow, DEFAULT_TRANSLATIONS } from './types';
 import { TableToolbar } from './TableToolbar';
 import { Checkbox } from './Checkbox';
 import { ColumnFilterModal } from './ColumnFilterModal';
 import { useTableTheme } from './hooks/useTableTheme';
-import { TableTheme, themeFallbacks } from './theme/tokens';
+import { useStableCallback } from './hooks/useStableCallback';
 import { DraggableHeader } from './DraggableHeader';
-import { DraggableRow } from './DraggableRow';
+import { RowContext, TableBodyRow } from './TableBodyRow';
+import { createTableStyles } from './tableStyles';
+import {
+  AnimatedViewStyle,
+  EditingCell,
+  GROUP_GAP,
+  PositionedColumn,
+  ROW_HEIGHTS,
+  CHECKBOX_WIDTH,
+  getAlign,
+  getColumnWidth,
+  markedHeaderColor,
+} from './layout';
 import { nextSortDirection } from './core/sort';
 import { isEmptyFilterValue } from './core/filter';
 import { moveKey, reconcileOrder } from './core/columns';
 import { getDropIndex } from './core/reorder';
 import { INVALID_EDIT, parseEditedValue } from './core/edit';
-import { darkenColor } from './utils/color';
-import { SIGNED_DECIMAL_KEYBOARD } from './utils/keyboard';
-
-const CHECKBOX_WIDTH = 50;
-const DEFAULT_COLUMN_WIDTH = 100;
-/** Space above the first row of each group when `rowGroupKey` is set. */
-const GROUP_GAP = 4;
-
-const ROW_HEIGHTS: Record<Density, number> = {
-  compact: 36,
-  standard: 48,
-  comfortable: 64,
-};
 
 const AnimatedGHScrollView = Animated.createAnimatedComponent(GHScrollView);
-
-type PositionedColumn<T> = Column<T> & {
-  offsetX: number;
-  stickyOffset: number;
-  isSticky?: boolean;
-};
-
-type EditingCell = { id: RowId; key: string; initialText: string };
-
-const getColumnWidth = <T,>(col: Column<T>) => col.width || DEFAULT_COLUMN_WIDTH;
-
-const getAlign = (align?: 'left' | 'center' | 'right') => {
-  switch (align) {
-    case 'center':
-      return 'center';
-    case 'right':
-      return 'flex-end';
-    default:
-      return 'flex-start';
-  }
-};
 
 export function ModernTable<T extends TableRow>({
   data,
@@ -128,7 +82,7 @@ export function ModernTable<T extends TableRow>({
   onFullscreenChange,
 }: ModernTableProps<T>) {
   const tableTheme = useTableTheme(theme, themeConfig);
-  const styles = useMemo(() => createStyles(tableTheme), [tableTheme]);
+  const styles = useMemo(() => createTableStyles(tableTheme), [tableTheme]);
   const t = useMemo(() => ({ ...DEFAULT_TRANSLATIONS, ...translations }), [translations]);
 
   // --- COLUMN ORDER ---
@@ -162,7 +116,15 @@ export function ModernTable<T extends TableRow>({
   const handleViewportLayout = (e: LayoutChangeEvent) =>
     setViewportWidth(e.nativeEvent.layout.width);
 
-  const scrollX = useRef(new Animated.Value(0)).current;
+  // One Animated value drives every sticky cell; interpolations are shared per column below.
+  const [scrollX] = useState(() => new Animated.Value(0));
+  const handleScroll = useMemo(
+    () =>
+      Animated.event([{ nativeEvent: { contentOffset: { x: scrollX } } }], {
+        useNativeDriver: true,
+      }),
+    [scrollX]
+  );
 
   // --- EDIT STATE ---
   // The input is uncontrolled: typed text lives in a ref so rows don't re-render per keystroke.
@@ -225,14 +187,25 @@ export function ModernTable<T extends TableRow>({
     });
   }, [isReorderMode, data, rowGroupKey, currentRowHeight]);
 
-  const handleRowDragEnd = (fromIndex: number, translationY: number) => {
-    if (sortDirection) return; // Order is meaningless while a sort is applied
-    const toIndex = getDropIndex(rowSizes, fromIndex, translationY);
-    if (toIndex !== fromIndex) onRowReorder?.(fromIndex, toIndex);
-  };
+  // Event handlers from props get stable wrappers so memoized rows don't re-render when a
+  // parent passes new inline functions. Render-affecting props (getRowStyle, rowStyle,
+  // columns) are used as-is.
+  const handleRowPress = useStableCallback(onRowPress);
+  const handleToggleRow = useStableCallback(onToggleRow);
+  const handleRowChange = useStableCallback(onRowChange);
+  const handleRowReorder = useStableCallback(onRowReorder);
+
+  const handleRowDragEnd = useCallback(
+    (fromIndex: number, translationY: number) => {
+      if (sortDirection) return; // Order is meaningless while a sort is applied
+      const toIndex = getDropIndex(rowSizes, fromIndex, translationY);
+      if (toIndex !== fromIndex) handleRowReorder(fromIndex, toIndex);
+    },
+    [sortDirection, rowSizes, handleRowReorder]
+  );
 
   // --- EDIT LOGIC ---
-  const startEdit = (item: T, key: string) => {
+  const startEdit = useCallback((item: T, key: string) => {
     const value = item[key as keyof T];
     const cell: EditingCell = {
       id: item.id,
@@ -242,141 +215,93 @@ export function ModernTable<T extends TableRow>({
     editingRef.current = cell;
     editTextRef.current = cell.initialText;
     setEditingCell(cell);
-  };
+  }, []);
+
+  const handleEditTextChange = useCallback((text: string) => {
+    editTextRef.current = text;
+  }, []);
 
   /** Commits once per edit — submit also blurs, and the ref drops the second call. */
-  const commitEdit = (item: T, key: string) => {
-    const cell = editingRef.current;
-    if (!cell || cell.id !== item.id || cell.key !== key) return;
-    editingRef.current = null;
-    setEditingCell(null);
+  const commitEdit = useCallback(
+    (item: T, key: string) => {
+      const cell = editingRef.current;
+      if (!cell || cell.id !== item.id || cell.key !== key) return;
+      editingRef.current = null;
+      setEditingCell(null);
 
-    const text = editTextRef.current;
-    if (!onRowChange || text === cell.initialText) return;
-    const value = parseEditedValue(text, item[key as keyof T]);
-    if (value === INVALID_EDIT) return;
-    onRowChange({ ...item, [key]: value });
-  };
+      const text = editTextRef.current;
+      if (text === cell.initialText) return;
+      const value = parseEditedValue(text, item[key as keyof T]);
+      if (value === INVALID_EDIT) return;
+      handleRowChange({ ...item, [key]: value });
+    },
+    [handleRowChange]
+  );
 
-  // --- STICKY STYLE GENERATOR ---
-  const getStickyStyle = (col: PositionedColumn<T>, index: number, backgroundColor: string) => {
-    if (!col.isSticky) return {};
-
-    const threshold = col.offsetX - col.stickyOffset;
-
-    return {
-      position: 'relative',
-      zIndex: 100 - index,
-      backgroundColor,
+  // --- STICKY STYLES ---
+  // Built once per layout change and shared by every row, instead of one interpolation per
+  // cell per render.
+  const leadingTransform = useMemo<AnimatedViewStyle>(
+    () => ({
       transform: [
-        {
-          translateX: scrollX.interpolate({
-            inputRange: [-1, threshold, threshold + 1],
-            outputRange: [0, 0, 1],
-            extrapolateLeft: 'clamp',
-          }),
-        },
+        { translateX: scrollX.interpolate({ inputRange: [-1, 0, 1], outputRange: [0, 0, 1] }) },
       ],
-      borderRightWidth: 1,
-      borderRightColor: tableTheme.border,
-      shadowColor: '#000',
-      shadowOffset: { width: 2, height: 0 },
-      shadowOpacity: 0.05,
-      shadowRadius: 2,
-      elevation: 3,
-    } as unknown as StyleProp<ViewStyle>;
-  };
+    }),
+    [scrollX]
+  );
 
-  const markedHeaderColor = (col: Column<T>) =>
-    col.markedColor
-      ? darkenColor(col.markedColor, 20)
-      : (tableTheme.markedHeaderBackground ?? themeFallbacks.markedHeaderBackground);
-
-  const markedCellColor = (col: Column<T>) =>
-    col.markedColor || (tableTheme.markedBackground ?? themeFallbacks.markedBackground);
+  const stickyStyles = useMemo(() => {
+    const map = new Map<string, AnimatedViewStyle>();
+    columnsWithOffsets.forEach((col, index) => {
+      if (!col.isSticky) return;
+      const threshold = col.offsetX - col.stickyOffset;
+      map.set(col.key as string, {
+        position: 'relative',
+        zIndex: 100 - index,
+        transform: [
+          {
+            translateX: scrollX.interpolate({
+              inputRange: [-1, threshold, threshold + 1],
+              outputRange: [0, 0, 1],
+              extrapolateLeft: 'clamp',
+            }),
+          },
+        ],
+        borderRightWidth: 1,
+        borderRightColor: tableTheme.border,
+        shadowColor: '#000',
+        shadowOffset: { width: 2, height: 0 },
+        shadowOpacity: 0.05,
+        shadowRadius: 2,
+        elevation: 3,
+      });
+    });
+    return map;
+  }, [columnsWithOffsets, scrollX, tableTheme.border]);
 
   // --- RENDERERS ---
 
-  const renderLeadingCell = (
-    type: 'header' | 'row',
-    item?: T,
-    bgColor: string = tableTheme.background,
-    dragGesture?: GestureType
-  ) => {
-    const isHeader = type === 'header';
-
-    if (isReorderMode) {
-      if (isHeader) {
-        return (
-          <View
-            style={[styles.stickyCheckbox, { height: currentRowHeight, backgroundColor: bgColor }]}
-          >
-            <Hand size={20} color={tableTheme.textSecondary} />
-          </View>
-        );
-      }
-
-      const DragHandle = (
-        <View style={{ opacity: 0.5 }}>
-          <AlignJustify size={20} color={tableTheme.text} />
-        </View>
-      );
-
-      return (
-        <Animated.View
-          style={[
-            styles.stickyCheckbox,
-            {
-              height: currentRowHeight,
-              backgroundColor: bgColor,
-              transform: [
-                {
-                  translateX: scrollX.interpolate({
-                    inputRange: [-1, 0, 1],
-                    outputRange: [0, 0, 1],
-                  }),
-                },
-              ],
-            },
-          ]}
-        >
-          {dragGesture ? (
-            <GestureDetector gesture={dragGesture}>{DragHandle}</GestureDetector>
-          ) : (
-            DragHandle
-          )}
-        </Animated.View>
-      );
-    }
-
-    return (
-      <Animated.View
-        style={[
-          styles.stickyCheckbox,
-          {
-            height: currentRowHeight,
-            backgroundColor: bgColor,
-            transform: [
-              {
-                translateX: scrollX.interpolate({
-                  inputRange: [-1, 0, 1],
-                  outputRange: [0, 0, 1],
-                }),
-              },
-            ],
-          },
-        ]}
-      >
+  const renderHeaderLeadingCell = () => (
+    <Animated.View
+      style={[
+        styles.stickyCheckbox,
+        { height: currentRowHeight, backgroundColor: tableTheme.headerBackground },
+        leadingTransform,
+      ]}
+    >
+      {isReorderMode ? (
+        <Hand size={20} color={tableTheme.textSecondary} />
+      ) : (
         <Checkbox
-          checked={isHeader ? !!isAllSelected : item ? selectedIds?.has(item.id) || false : false}
-          onPress={() => (isHeader ? onToggleAll?.() : item && onToggleRow?.(item.id))}
+          checked={!!isAllSelected}
+          onPress={() => onToggleAll?.()}
           activeColor={tableTheme.primary}
           borderColor={tableTheme.textSecondary}
           checkColor={tableTheme.textInverse}
         />
-      </Animated.View>
-    );
-  };
+      )}
+    </Animated.View>
+  );
 
   const renderHeaderCell = (col: PositionedColumn<T>, index: number) => {
     const key = col.key as string;
@@ -390,7 +315,9 @@ export function ModernTable<T extends TableRow>({
           styles.headerCell,
           { width, justifyContent: getAlign(col.align) },
           headerStyle,
-          (col.isMarked || col.markedColor) && { backgroundColor: markedHeaderColor(col) },
+          (col.isMarked || col.markedColor) && {
+            backgroundColor: markedHeaderColor(col, tableTheme),
+          },
           col.headerStyle,
         ]}
       >
@@ -446,7 +373,8 @@ export function ModernTable<T extends TableRow>({
         style={[
           styles.headerCellContainer,
           { width },
-          getStickyStyle(col, index, tableTheme.headerBackground),
+          stickyStyles.get(key),
+          col.isSticky && { backgroundColor: tableTheme.headerBackground },
         ]}
       >
         {headerContent}
@@ -454,170 +382,78 @@ export function ModernTable<T extends TableRow>({
     );
   };
 
-  const renderRow = ({ item, index }: ListRenderItemInfo<T>) => {
-    const isEven = index % 2 === 0;
-    const isSelected = selectedIds?.has(item.id);
-    const rowBgColor = isSelected
-      ? tableTheme.rowSelected
-      : isEven
-        ? tableTheme.rowEven
-        : tableTheme.rowOdd;
-
-    let isFirstInGroup = false;
-    let isLastInGroup = false;
-
-    if (rowGroupKey) {
-      const currentGroup = item[rowGroupKey];
-      const prevGroup = index > 0 ? data[index - 1][rowGroupKey] : undefined;
-      const nextGroup = index < data.length - 1 ? data[index + 1][rowGroupKey] : undefined;
-
-      isFirstInGroup = currentGroup !== prevGroup;
-      isLastInGroup = currentGroup !== nextGroup;
-    }
-
-    const renderRowContent = (dragGesture?: GestureType) => {
-      const RowComponent = onRowPress ? TouchableOpacity : View;
-      return (
-        <RowComponent
-          onPress={onRowPress ? () => onRowPress(item) : undefined}
-          activeOpacity={onRowPress ? 0.7 : 1}
-          style={[
-            styles.row,
-            { backgroundColor: rowBgColor, height: currentRowHeight },
-            isFirstInGroup && {
-              borderTopLeftRadius: 12,
-              borderTopRightRadius: 12,
-              marginTop: index === 0 ? 0 : GROUP_GAP,
-            },
-            isLastInGroup && {
-              borderBottomLeftRadius: 12,
-              borderBottomRightRadius: 12,
-            },
-            rowStyle,
-            getRowStyle?.(item, index),
-          ]}
-        >
-          {showLeadingColumn && renderLeadingCell('row', item, rowBgColor, dragGesture)}
-
-          {columnsWithOffsets.map((col, colIndex) => {
-            const key = col.key as string;
-            const value = item[key as keyof T];
-            const isEditing = editingCell?.id === item.id && editingCell?.key === key;
-            const canEdit = !!col.editable && !!onRowChange;
-
-            return (
-              <Animated.View
-                key={key}
-                style={[
-                  styles.cellBase,
-                  {
-                    width: getColumnWidth(col),
-                    justifyContent: getAlign(col.align),
-                    height: currentRowHeight,
-                  },
-                  getStickyStyle(col, colIndex, rowBgColor),
-                  (col.isMarked || col.markedColor) && { backgroundColor: markedCellColor(col) },
-                  col.style,
-                ]}
-              >
-                {isEditing ? (
-                  <TextInput
-                    style={styles.editInput}
-                    defaultValue={editingCell.initialText}
-                    onChangeText={text => {
-                      editTextRef.current = text;
-                    }}
-                    onBlur={() => commitEdit(item, key)}
-                    keyboardType={typeof value === 'number' ? SIGNED_DECIMAL_KEYBOARD : 'default'}
-                    selectTextOnFocus
-                    autoFocus
-                    placeholderTextColor={tableTheme.textSecondary}
-                  />
-                ) : (
-                  <TouchableOpacity
-                    disabled={!canEdit}
-                    onPress={() => startEdit(item, key)}
-                    style={[styles.cellTouchable, { alignItems: getAlign(col.align) }]}
-                  >
-                    {col.renderCell ? (
-                      col.renderCell(item, index)
-                    ) : (
-                      <Text
-                        style={[
-                          styles.cellText,
-                          canEdit && styles.editableText,
-                          { textAlign: col.align || 'left' },
-                        ]}
-                        numberOfLines={1}
-                      >
-                        {String(value)}
-                      </Text>
-                    )}
-                  </TouchableOpacity>
-                )}
-              </Animated.View>
-            );
-          })}
-        </RowComponent>
-      );
-    };
-
-    if (isReorderMode) {
-      return (
-        <DraggableRow
-          key={String(item.id)}
-          index={index}
-          theme={tableTheme}
-          isDragEnabled={!sortDirection}
-          onDragEnd={handleRowDragEnd}
-          testID={`row-drag-${item.id}`}
-        >
-          {({ dragGesture }) => renderRowContent(dragGesture)}
-        </DraggableRow>
-      );
-    }
-
-    return renderRowContent();
-  };
-
-  // Everything renderRow reads besides `data`, so FlashList re-renders rows exactly when needed.
-  const extraData = useMemo(
+  // --- ROWS ---
+  const canEdit = !!onRowChange;
+  const isPressable = !!onRowPress;
+  const rowContext = useMemo<RowContext<T>>(
     () => ({
-      selectedIds,
-      editingCell,
-      columnsWithOffsets,
-      currentRowHeight,
+      columns: columnsWithOffsets,
+      rowHeight: currentRowHeight,
       showLeadingColumn,
       isReorderMode,
-      sortDirection,
-      tableTheme,
+      isDragEnabled: !sortDirection,
+      canEdit,
+      isPressable,
+      theme: tableTheme,
+      styles,
+      leadingTransform,
+      stickyStyles,
       rowStyle,
       getRowStyle,
-      rowGroupKey,
-      onRowPress,
-      onRowChange,
-      onToggleRow,
-      onRowReorder,
-      rowSizes,
+      onRowPress: handleRowPress,
+      onToggleRow: handleToggleRow,
+      onStartEdit: startEdit,
+      onEditTextChange: handleEditTextChange,
+      onCommitEdit: commitEdit,
+      onDragEnd: handleRowDragEnd,
     }),
     [
-      selectedIds,
-      editingCell,
       columnsWithOffsets,
       currentRowHeight,
       showLeadingColumn,
       isReorderMode,
       sortDirection,
+      canEdit,
+      isPressable,
       tableTheme,
+      styles,
+      leadingTransform,
+      stickyStyles,
       rowStyle,
       getRowStyle,
-      rowGroupKey,
-      onRowPress,
-      onRowChange,
-      onToggleRow,
-      onRowReorder,
-      rowSizes,
+      handleRowPress,
+      handleToggleRow,
+      startEdit,
+      handleEditTextChange,
+      commitEdit,
+      handleRowDragEnd,
     ]
+  );
+
+  // FlashList calls this for every visible row when it changes, but TableBodyRow is memoized
+  // on its props — so e.g. toggling one checkbox re-renders one row.
+  const renderItem = useCallback(
+    ({ item, index }: ListRenderItemInfo<T>) => {
+      let isFirstInGroup = false;
+      let isLastInGroup = false;
+      if (rowGroupKey) {
+        const group = item[rowGroupKey];
+        isFirstInGroup = index === 0 || data[index - 1][rowGroupKey] !== group;
+        isLastInGroup = index === data.length - 1 || data[index + 1][rowGroupKey] !== group;
+      }
+      return (
+        <TableBodyRow
+          item={item}
+          index={index}
+          isSelected={!!selectedIds?.has(item.id)}
+          editing={editingCell?.id === item.id ? editingCell : null}
+          isFirstInGroup={isFirstInGroup}
+          isLastInGroup={isLastInGroup}
+          ctx={rowContext}
+        />
+      );
+    },
+    [data, rowGroupKey, selectedIds, editingCell, rowContext]
   );
 
   const showToolbar = !!(onSearchChange && onDensityChange && onToggleColumn);
@@ -657,9 +493,7 @@ export function ModernTable<T extends TableRow>({
           scrollEventThrottle={16}
           contentContainerStyle={{ flexGrow: 1 }}
           nestedScrollEnabled={true}
-          onScroll={Animated.event([{ nativeEvent: { contentOffset: { x: scrollX } } }], {
-            useNativeDriver: true,
-          })}
+          onScroll={handleScroll}
         >
           {/*
             Fill the table's own width (not the screen's) so there is no phantom scroll.
@@ -669,8 +503,7 @@ export function ModernTable<T extends TableRow>({
           <View style={{ width: Math.max(viewportWidth, totalWidth) }}>
             {/* HEADER */}
             <View style={[styles.header, headerStyle, { height: currentRowHeight }]}>
-              {showLeadingColumn &&
-                renderLeadingCell('header', undefined, tableTheme.headerBackground)}
+              {showLeadingColumn && renderHeaderLeadingCell()}
               {columnsWithOffsets.map((col, index) => renderHeaderCell(col, index))}
             </View>
 
@@ -679,8 +512,10 @@ export function ModernTable<T extends TableRow>({
               <FlashList
                 key={Platform.OS === 'ios' ? listIdentityKey : undefined}
                 data={data}
-                extraData={extraData}
-                renderItem={renderRow}
+                // renderItem's identity already tracks everything rows read; FlashList v1
+                // additionally needs it as extraData to re-render.
+                extraData={renderItem}
+                renderItem={renderItem}
                 keyExtractor={item => String(item.id)}
                 contentContainerStyle={styles.listContent}
                 // FlashList v1 needs estimatedItemSize; v2 dropped it from its types. A
@@ -785,211 +620,4 @@ export function ModernTable<T extends TableRow>({
       )}
     </View>
   );
-}
-
-function createStyles(theme: TableTheme) {
-  return StyleSheet.create({
-    container: {
-      flex: 1,
-      backgroundColor: theme.background,
-      borderRadius: 16,
-      borderWidth: 1,
-      borderColor: theme.border,
-      overflow: 'hidden',
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.1, // Softer shadow
-      shadowRadius: 12, // Larger spread
-      elevation: 5,
-    },
-    viewport: {
-      flex: 1,
-    },
-    header: {
-      flexDirection: 'row',
-      backgroundColor: theme.headerBackground,
-      borderBottomWidth: 1,
-      borderBottomColor: theme.border,
-      alignItems: 'center',
-    },
-    headerCellContainer: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      height: '100%',
-    },
-    headerCell: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingHorizontal: 8, // More breathing room
-      borderRightWidth: 0, // Removed vertical borders for cleaner look
-      height: '100%',
-      justifyContent: 'space-between',
-    },
-    headerContent: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      flex: 1,
-      height: '100%',
-      gap: 6,
-    },
-    filterIcon: {
-      padding: 6,
-      borderRadius: 6,
-      backgroundColor: theme.surfaceHighlight,
-    },
-    filterIconActive: {
-      backgroundColor: theme.primaryLight,
-    },
-    cellBase: {
-      paddingHorizontal: 16,
-      flexDirection: 'row',
-      alignItems: 'center',
-      borderRightWidth: 0, // Removing vertical borders
-    },
-    // Fills the whole cell so the tap target is the cell, not just the text line.
-    cellTouchable: {
-      flex: 1,
-      alignSelf: 'stretch',
-      justifyContent: 'center',
-    },
-    headerText: {
-      fontFamily: theme.fontFamily.bold,
-      color: theme.headerText,
-      fontSize: 11,
-      textTransform: 'uppercase', // Modern touch
-      letterSpacing: 0.5,
-    },
-    row: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      borderBottomWidth: 1,
-      borderBottomColor: theme.border,
-    },
-    cellText: {
-      fontSize: 14,
-      color: theme.text,
-      fontFamily: theme.fontFamily.medium,
-    },
-    editableText: {
-      color: theme.primary,
-      fontFamily: theme.fontFamily.semibold,
-    },
-    stickyCheckbox: {
-      width: CHECKBOX_WIDTH,
-      justifyContent: 'center',
-      alignItems: 'center',
-      position: 'relative',
-      zIndex: 101,
-      borderRightWidth: 1, // Keep border for sticky separator
-      borderRightColor: theme.border,
-      shadowColor: '#000',
-      shadowOffset: { width: 4, height: 0 },
-      shadowOpacity: 0.05,
-      shadowRadius: 4,
-      elevation: 2,
-    },
-    editInput: {
-      flex: 1,
-      height: 36,
-      padding: 0,
-      borderWidth: 1.5,
-      borderColor: theme.primary,
-      borderRadius: 6,
-      paddingHorizontal: 10,
-      backgroundColor: theme.background,
-      fontSize: 14,
-      color: theme.text,
-    },
-    listContent: {
-      paddingBottom: 0,
-    },
-    emptyContainer: {
-      padding: 48,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    emptyText: {
-      color: theme.textSecondary,
-      fontSize: 16,
-      marginTop: 12,
-    },
-    paginationContainer: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      padding: 12,
-      borderTopWidth: 1,
-      borderTopColor: theme.border,
-      backgroundColor: theme.background,
-      zIndex: 200,
-    },
-    paginationLeft: {
-      flex: 1,
-      flexDirection: 'row',
-      alignItems: 'center',
-    },
-    paginationRight: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 12,
-    },
-    perPageContainer: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
-      backgroundColor: theme.surfaceHighlight,
-      padding: 4,
-      borderRadius: 8,
-    },
-    perPageLabel: {
-      fontSize: 12,
-      color: theme.textSecondary,
-      marginLeft: 4,
-    },
-    perPageButtons: {
-      flexDirection: 'row',
-      gap: 2,
-    },
-    perPageButton: {
-      paddingHorizontal: 10,
-      paddingVertical: 6,
-      borderRadius: 6,
-    },
-    perPageButtonActive: {
-      backgroundColor: theme.background,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 1 },
-      shadowOpacity: 0.1,
-      shadowRadius: 2,
-      elevation: 1,
-    },
-    perPageButtonText: {
-      fontSize: 12,
-      color: theme.textSecondary,
-    },
-    perPageButtonTextActive: {
-      color: theme.primary,
-      fontFamily: theme.fontFamily.bold,
-    },
-    pageInfo: {
-      fontSize: 13,
-      color: theme.textSecondary,
-      fontFamily: theme.fontFamily.medium,
-    },
-    paginationButtons: {
-      flexDirection: 'row',
-      gap: 8,
-    },
-    pageButton: {
-      padding: 6,
-      borderRadius: 8,
-      backgroundColor: theme.background,
-      borderWidth: 1,
-      borderColor: theme.border,
-    },
-    disabledButton: {
-      opacity: 0.4,
-      backgroundColor: theme.surfaceHighlight,
-    },
-  });
 }
