@@ -9,7 +9,7 @@ Track props, features, and half-finished structures removed or postponed during 
 |------|-------|----------------------|
 | `stickyHeader` | Declared on `ModernTableProps`, never applied to header/list. | Pin header while body scrolls vertically (FlashList sticky header / absolute header). |
 | `enableGlobalSearch` | Declared; toolbar search already gated by `onSearchChange` presence. | Explicit flag to show/hide search independently of other toolbar controls. |
-| `isLoading` | Declared; no loading UI. | Overlay / skeleton / `ListEmptyComponent` loading state. |
+| `isLoading` | Declared; no loading UI. | Re-added in `0.3.0` with a real implementation (spinner / dimmed refetch). Skeleton rows still open. |
 | `onSelectionChange` | Declared; selection used `onToggleOne` / `onToggleAll` only. | Optional bulk callback `(ids: RowId[]) => void` fired after each toggle, or replace toggle API. |
 | `emptyMessage` | Replaced by `translations.empty`. | — (done via i18n) |
 
@@ -56,11 +56,9 @@ Chevron colors were hardcoded (`#ccc` / `#333`). Moved to theme tokens; paginati
 still has no `translations` for a11y labels (prev/next).
 
 ### `useTable` gaps
-- No controlled mode for individual slices (always owns state).
-- `toggleAllSelection` scopes to **current page** only (other pages' selections are
-  kept since `0.2.0`) — consider `selectAllScope: 'page' | 'filtered'`.
+- No controlled mode for individual slices (always owns state; `initialState` seeds it).
 - No `columnOrder` state in `useTable` yet (table manages it).
-- No `getRowId` override — requires `T extends { id }`.
+- Done in `0.3.0`: `selectAllScope`, `getRowId`, options object.
 
 ### Filter modal
 Boolean filters historically mixed `true`/`false` with stringly values. Typed as
@@ -71,11 +69,12 @@ Left in MyExamy app (depends on `ExView` / `ExText`). Not part of this package.
 Consider a minimal unstyled `SimpleTable` later if needed.
 
 ### Loading / empty / error triad
-Only empty copy exists. Loading and error states were never started.
+Done in `0.3.0` (`isLoading`, `isLoadingMore`, `error` + `onRetry`, `emptyComponent`).
+Still open: skeleton rows.
 
 ### Server-side / remote data
-All filter/sort/paginate are client-side via `useTable`. Remote mode
-(`manualSorting`, `manualPagination`, total count) not started.
+Done in `0.3.0`: `manual` mode is all-or-nothing. Still open: per-slice manual flags
+(e.g. server sorting with client pagination).
 
 ### Accessibility
 No `accessibilityLabel` / role wiring on sort headers, checkboxes, or toolbar actions.
@@ -114,3 +113,5 @@ Fullscreen = landscape lock only; hiding app chrome is left to `onFullscreenChan
 | Bug-fix pass | `0.2.0` | See CHANGELOG `0.2.0` |
 | Compiled package (builder-bob, exports) | `0.2.0` | Strict consumers no longer type-check `src` |
 | Row memoization, shared sticky interpolations, indexed search | `0.2.0` | Kept RN `Animated` (native driver) — a Reanimated migration wasn't needed |
+| `useTable` options, server-side (`manual`) mode, `getRowId` | `0.3.0` | Replaces the "useTable gaps" and "Server-side / remote data" notes |
+| Loading / error / empty states, refresh, infinite scroll | `0.3.0` | `isLoading`, `isLoadingMore`, `error`, `onRetry`, `emptyComponent`, … |

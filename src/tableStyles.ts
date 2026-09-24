@@ -123,6 +123,48 @@ export function createTableStyles(theme: TableTheme) {
       alignItems: 'center',
       justifyContent: 'center',
     },
+    statusContainer: {
+      padding: 48,
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 12,
+    },
+    errorText: {
+      color: theme.error,
+      fontSize: 15,
+      textAlign: 'center',
+      fontFamily: theme.fontFamily.medium,
+    },
+    retryButton: {
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: theme.border,
+      backgroundColor: theme.surface,
+    },
+    retryText: {
+      color: theme.primary,
+      fontFamily: theme.fontFamily.semibold,
+    },
+    loadingOverlay: {
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      bottom: 0,
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 150,
+    },
+    loadingOverlayBackdrop: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: theme.background,
+      opacity: 0.6,
+    },
+    footerLoading: {
+      paddingVertical: 16,
+      alignItems: 'center',
+    },
     emptyText: {
       color: theme.textSecondary,
       fontSize: 16,

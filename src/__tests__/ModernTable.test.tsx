@@ -269,3 +269,74 @@ describe('ModernTable row rendering', () => {
     expect(second).toHaveBeenCalledWith(rows[0]);
   });
 });
+
+describe('ModernTable states', () => {
+  const columns: Column<Row>[] = [{ key: 'name', title: 'Name' }];
+
+  it('shows a loading view instead of the empty state', () => {
+    render(<ModernTable data={[]} columns={columns} isLoading />);
+    expect(screen.getByText('Loading…')).toBeTruthy();
+    expect(screen.queryByText('No data found.')).toBeNull();
+  });
+
+  it('dims existing rows while refetching', () => {
+    render(<ModernTable data={rows} columns={columns} isLoading />);
+    expect(screen.getByText('Ali')).toBeTruthy();
+    expect(screen.getByLabelText('Loading…')).toBeTruthy();
+  });
+
+  it('renders the built-in error view with retry', () => {
+    const onRetry = jest.fn();
+    render(<ModernTable data={rows} columns={columns} error="Network down" onRetry={onRetry} />);
+    expect(screen.getByText('Network down')).toBeTruthy();
+    expect(screen.queryByText('Ali')).toBeNull();
+    fireEvent.press(screen.getByText('Retry'));
+    expect(onRetry).toHaveBeenCalled();
+  });
+
+  it('uses the default error message for `error={true}` and custom nodes as-is', () => {
+    const { rerender } = render(<ModernTable data={rows} columns={columns} error />);
+    expect(screen.getByText('Something went wrong.')).toBeTruthy();
+    rerender(<ModernTable data={rows} columns={columns} error={<Text>Custom</Text>} />);
+    expect(screen.getByText('Custom')).toBeTruthy();
+  });
+
+  it('shows a footer spinner while loading more', () => {
+    const { rerender } = render(<ModernTable data={rows} columns={columns} />);
+    expect(screen.queryByLabelText('Loading…')).toBeNull();
+    rerender(<ModernTable data={rows} columns={columns} isLoadingMore />);
+    expect(screen.getByLabelText('Loading…')).toBeTruthy();
+    expect(screen.getByText('Ali')).toBeTruthy();
+  });
+
+  it('renders a custom empty component', () => {
+    render(<ModernTable data={[]} columns={columns} emptyComponent={<Text>Nothing here</Text>} />);
+    expect(screen.getByText('Nothing here')).toBeTruthy();
+  });
+
+  it('works with getRowId for rows without an id', () => {
+    type Student = { no: string; name: string };
+    const onToggleRow = jest.fn();
+    const students: Student[] = [{ no: 's1', name: 'Zeynep' }];
+    render(
+      <ModernTable
+        data={students}
+        columns={[{ key: 'name', title: 'Name' }]}
+        getRowId={s => s.no}
+        enableSelection
+        selectedIds={new Set(['s1'])}
+        onToggleRow={onToggleRow}
+      />
+    );
+    expect(screen.getByText('Zeynep')).toBeTruthy();
+  });
+});
+
+// Type-level check (run by `tsc`).
+export function modernTableTypeChecks() {
+  type NoId = { code: string };
+  // @ts-expect-error — rows without `id` need getRowId
+  const missing = <ModernTable data={[] as NoId[]} columns={[]} />;
+  const ok = <ModernTable data={[] as NoId[]} columns={[]} getRowId={r => r.code} />;
+  return [missing, ok];
+}

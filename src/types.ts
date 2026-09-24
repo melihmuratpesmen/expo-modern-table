@@ -6,6 +6,11 @@ import type { ScreenOrientationModule } from './hooks/useFullscreenOrientation';
 export type RowId = string | number;
 export type TableRow = { id: RowId };
 
+/** `getRowId` is optional when rows have an `id` field and required otherwise. */
+export type RowIdAccessor<T> = T extends TableRow
+  ? { getRowId?: (row: T) => RowId }
+  : { getRowId: (row: T) => RowId };
+
 export type SortDirection = 'asc' | 'desc' | null;
 export type Density = 'compact' | 'standard' | 'comfortable';
 export type SelectionMode = 'select' | 'reorder';
@@ -33,6 +38,9 @@ export interface TableTranslations {
   show: string;
   page: string;
   empty: string;
+  loading: string;
+  error: string;
+  retry: string;
 }
 
 export const DEFAULT_TRANSLATIONS: TableTranslations = {
@@ -51,6 +59,9 @@ export const DEFAULT_TRANSLATIONS: TableTranslations = {
   show: 'Show:',
   page: 'Page',
   empty: 'No data found.',
+  loading: 'Loading…',
+  error: 'Something went wrong.',
+  retry: 'Retry',
 };
 
 export interface Column<T> {
@@ -87,7 +98,7 @@ export interface PaginationProps {
  * Internal-only UI state (not in this interface): cell editing, open filter modal.
  * Semi-controlled: `selectionMode`, `columnOrder` — controlled when provided, else internal.
  */
-export interface ModernTableProps<T extends TableRow> {
+export interface ModernTableBaseProps<T extends object> {
   data: T[];
   columns: Column<T>[];
 
@@ -154,6 +165,24 @@ export interface ModernTableProps<T extends TableRow> {
   scrollEnabled?: boolean;
   onRowPress?: (item: T) => void;
 
+  // Loading / error / empty
+  /** Blocking load: a spinner replaces the empty state, or dims the rows while refetching. */
+  isLoading?: boolean;
+  /** Non-blocking load (e.g. next page of an infinite list): a spinner below the rows. */
+  isLoadingMore?: boolean;
+  /** Shown instead of the rows. A string uses the built-in error view. */
+  error?: ReactNode;
+  /** Shows a retry button in the built-in error view. */
+  onRetry?: () => void;
+  /** Replaces the built-in "no data" view. */
+  emptyComponent?: ReactNode;
+
+  // Pull to refresh / infinite scroll (passed to FlashList)
+  refreshing?: boolean;
+  onRefresh?: () => void;
+  onEndReached?: () => void;
+  onEndReachedThreshold?: number;
+
   /**
    * Pass `expo-screen-orientation` (`import * as ScreenOrientation from 'expo-screen-orientation'`)
    * to show the toolbar fullscreen (landscape) button.
@@ -161,3 +190,9 @@ export interface ModernTableProps<T extends TableRow> {
   screenOrientation?: ScreenOrientationModule;
   onFullscreenChange?: (isFullscreen: boolean) => void;
 }
+
+/**
+ * Props of `ModernTable`. Rows need an `id` field, or pass `getRowId` (memoize it — a new
+ * function re-renders every row).
+ */
+export type ModernTableProps<T extends object> = ModernTableBaseProps<T> & RowIdAccessor<T>;

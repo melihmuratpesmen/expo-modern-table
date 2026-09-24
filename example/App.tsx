@@ -67,10 +67,14 @@ const COLUMNS: Column<SubjectScore>[] = [
   },
 ];
 
+type DemoState = 'data' | 'loading' | 'error' | 'empty';
+const DEMO_STATES: DemoState[] = ['data', 'loading', 'error', 'empty'];
+
 export default function App() {
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [rows, setRows] = useState(DATA);
-  const table = useTable(rows, COLUMNS, 10);
+  const [demoState, setDemoState] = useState<DemoState>('data');
+  const table = useTable(demoState === 'empty' ? [] : rows, COLUMNS, 10);
 
   return (
     <GestureHandlerRootView style={styles.root}>
@@ -97,11 +101,38 @@ export default function App() {
             </Pressable>
           </View>
 
+          <View style={styles.demoStates}>
+            {DEMO_STATES.map(state => (
+              <Pressable
+                key={state}
+                onPress={() => setDemoState(state)}
+                style={[
+                  styles.demoChip,
+                  theme === 'dark' && styles.demoChipDark,
+                  demoState === state && styles.demoChipActive,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.demoChipText,
+                    theme === 'dark' && styles.textLight,
+                    demoState === state && styles.demoChipTextActive,
+                  ]}
+                >
+                  {state}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+
           <View style={styles.tableWrap}>
             <ModernTable
               columns={COLUMNS}
               {...table.getTableProps()}
               theme={theme}
+              isLoading={demoState === 'loading'}
+              error={demoState === 'error' ? 'Could not load subjects.' : undefined}
+              onRetry={() => setDemoState('data')}
               screenOrientation={ScreenOrientation}
               enableRowReorder
               enableColumnReorder
@@ -166,4 +197,17 @@ const styles = StyleSheet.create({
   },
   themeButtonText: { fontWeight: '600', color: '#111827' },
   tableWrap: { flex: 1, paddingHorizontal: 12, paddingBottom: 12 },
+  demoStates: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingBottom: 10 },
+  demoChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  demoChipDark: { backgroundColor: '#1e293b', borderColor: '#334155' },
+  demoChipActive: { backgroundColor: '#4f46e5', borderColor: '#4f46e5' },
+  demoChipText: { fontSize: 13, fontWeight: '600', color: '#111827' },
+  demoChipTextActive: { color: '#fff' },
 });

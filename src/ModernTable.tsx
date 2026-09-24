@@ -1,5 +1,13 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
-import { View, Text, TouchableOpacity, Animated, Platform, LayoutChangeEvent } from 'react-native';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  Animated,
+  Platform,
+  LayoutChangeEvent,
+  ActivityIndicator,
+} from 'react-native';
 import { ScrollView as GHScrollView } from 'react-native-gesture-handler';
 import { FlashList, ListRenderItemInfo } from '@shopify/flash-list';
 import {
@@ -10,7 +18,7 @@ import {
   ListFilter,
   Hand,
 } from 'lucide-react-native';
-import { ModernTableProps, SelectionMode, TableRow, DEFAULT_TRANSLATIONS } from './types';
+import { ModernTableProps, RowId, SelectionMode, TableRow, DEFAULT_TRANSLATIONS } from './types';
 import { TableToolbar } from './TableToolbar';
 import { Checkbox } from './Checkbox';
 import { ColumnFilterModal } from './ColumnFilterModal';
@@ -38,7 +46,9 @@ import { INVALID_EDIT, parseEditedValue } from './core/edit';
 
 const AnimatedGHScrollView = Animated.createAnimatedComponent(GHScrollView);
 
-export function ModernTable<T extends TableRow>({
+const defaultGetRowId = (row: object): RowId => (row as TableRow).id;
+
+export function ModernTable<T extends object>({
   data,
   columns,
   onSort,
@@ -80,7 +90,19 @@ export function ModernTable<T extends TableRow>({
   onSelectionModeChange,
   screenOrientation,
   onFullscreenChange,
+  getRowId,
+  isLoading = false,
+  isLoadingMore = false,
+  error,
+  onRetry,
+  emptyComponent,
+  refreshing,
+  onRefresh,
+  onEndReached,
+  onEndReachedThreshold,
 }: ModernTableProps<T>) {
+  // `RowIdAccessor` guarantees `getRowId` when rows have no `id`; widen it for internal use.
+  const rowIdOf = (getRowId as ((row: T) => RowId) | undefined) ?? defaultGetRowId;
   const tableTheme = useTableTheme(theme, themeConfig);
   const styles = useMemo(() => createTableStyles(tableTheme), [tableTheme]);
   const t = useMemo(() => ({ ...DEFAULT_TRANSLATIONS, ...translations }), [translations]);
@@ -115,6 +137,8 @@ export function ModernTable<T extends TableRow>({
   const [viewportWidth, setViewportWidth] = useState(0);
   const handleViewportLayout = (e: LayoutChangeEvent) =>
     setViewportWidth(e.nativeEvent.layout.width);
+  // Status views (empty / loading / error) span the visible width, not the full scroll width.
+  const viewportStyle = viewportWidth > 0 ? { width: viewportWidth } : undefined;
 
   // One Animated value drives every sticky cell; interpolations are shared per column below.
   const [scrollX] = useState(() => new Animated.Value(0));
@@ -205,17 +229,20 @@ export function ModernTable<T extends TableRow>({
   );
 
   // --- EDIT LOGIC ---
-  const startEdit = useCallback((item: T, key: string) => {
-    const value = item[key as keyof T];
-    const cell: EditingCell = {
-      id: item.id,
-      key,
-      initialText: value === null || value === undefined ? '' : String(value),
-    };
-    editingRef.current = cell;
-    editTextRef.current = cell.initialText;
-    setEditingCell(cell);
-  }, []);
+  const startEdit = useCallback(
+    (item: T, key: string) => {
+      const value = item[key as keyof T];
+      const cell: EditingCell = {
+        id: rowIdOf(item),
+        key,
+        initialText: value === null || value === undefined ? '' : String(value),
+      };
+      editingRef.current = cell;
+      editTextRef.current = cell.initialText;
+      setEditingCell(cell);
+    },
+    [rowIdOf]
+  );
 
   const handleEditTextChange = useCallback((text: string) => {
     editTextRef.current = text;
@@ -225,7 +252,7 @@ export function ModernTable<T extends TableRow>({
   const commitEdit = useCallback(
     (item: T, key: string) => {
       const cell = editingRef.current;
-      if (!cell || cell.id !== item.id || cell.key !== key) return;
+      if (!cell || cell.id !== rowIdOf(item) || cell.key !== key) return;
       editingRef.current = null;
       setEditingCell(null);
 
@@ -235,7 +262,7 @@ export function ModernTable<T extends TableRow>({
       if (value === INVALID_EDIT) return;
       handleRowChange({ ...item, [key]: value });
     },
-    [handleRowChange]
+    [rowIdOf, handleRowChange]
   );
 
   // --- STICKY STYLES ---
@@ -441,20 +468,24 @@ export function ModernTable<T extends TableRow>({
         isFirstInGroup = index === 0 || data[index - 1][rowGroupKey] !== group;
         isLastInGroup = index === data.length - 1 || data[index + 1][rowGroupKey] !== group;
       }
+      const rowId = rowIdOf(item);
       return (
         <TableBodyRow
           item={item}
+          rowId={rowId}
           index={index}
-          isSelected={!!selectedIds?.has(item.id)}
-          editing={editingCell?.id === item.id ? editingCell : null}
+          isSelected={!!selectedIds?.has(rowId)}
+          editing={editingCell?.id === rowId ? editingCell : null}
           isFirstInGroup={isFirstInGroup}
           isLastInGroup={isLastInGroup}
           ctx={rowContext}
         />
       );
     },
-    [data, rowGroupKey, selectedIds, editingCell, rowContext]
+    [data, rowGroupKey, rowIdOf, selectedIds, editingCell, rowContext]
   );
+
+  const keyExtractor = useCallback((item: T) => String(rowIdOf(item)), [rowIdOf]);
 
   const showToolbar = !!(onSearchChange && onDensityChange && onToggleColumn);
   const activeFilterDef = activeFilterColumn
@@ -509,30 +540,89 @@ export function ModernTable<T extends TableRow>({
 
             {/* BODY */}
             <View style={{ flex: 1, minHeight: 2 }}>
-              <FlashList
-                key={Platform.OS === 'ios' ? listIdentityKey : undefined}
-                data={data}
-                // renderItem's identity already tracks everything rows read; FlashList v1
-                // additionally needs it as extraData to re-render.
-                extraData={renderItem}
-                renderItem={renderItem}
-                keyExtractor={item => String(item.id)}
-                contentContainerStyle={styles.listContent}
-                // FlashList v1 needs estimatedItemSize; v2 dropped it from its types. A
-                // ts-expect-error would break type-checking against v1, so ignore instead.
-                // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-                // @ts-ignore
-                estimatedItemSize={currentRowHeight}
-                scrollEnabled={scrollEnabled}
-                ListEmptyComponent={
-                  <View style={styles.emptyContainer}>
-                    <Text style={styles.emptyText}>{t.empty}</Text>
-                  </View>
-                }
-              />
+              {error ? (
+                <View style={[styles.statusContainer, viewportStyle]}>
+                  {typeof error === 'string' || typeof error === 'boolean' ? (
+                    <>
+                      <Text style={styles.errorText}>
+                        {typeof error === 'string' ? error : t.error}
+                      </Text>
+                      {onRetry && (
+                        <TouchableOpacity
+                          style={styles.retryButton}
+                          onPress={onRetry}
+                          accessibilityRole="button"
+                        >
+                          <Text style={styles.retryText}>{t.retry}</Text>
+                        </TouchableOpacity>
+                      )}
+                    </>
+                  ) : (
+                    error
+                  )}
+                </View>
+              ) : (
+                <FlashList
+                  key={Platform.OS === 'ios' ? listIdentityKey : undefined}
+                  data={data}
+                  // renderItem's identity already tracks everything rows read; FlashList v1
+                  // additionally needs it as extraData to re-render.
+                  extraData={renderItem}
+                  renderItem={renderItem}
+                  keyExtractor={keyExtractor}
+                  contentContainerStyle={styles.listContent}
+                  // FlashList v1 needs estimatedItemSize; v2 dropped it from its types. A
+                  // ts-expect-error would break type-checking against v1, so ignore instead.
+                  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+                  // @ts-ignore
+                  estimatedItemSize={currentRowHeight}
+                  scrollEnabled={scrollEnabled}
+                  refreshing={!!refreshing}
+                  onRefresh={onRefresh}
+                  onEndReached={onEndReached}
+                  onEndReachedThreshold={onEndReachedThreshold}
+                  ListEmptyComponent={
+                    isLoading ? (
+                      <View style={[styles.statusContainer, viewportStyle]}>
+                        <ActivityIndicator color={tableTheme.primary} />
+                        <Text style={styles.emptyText}>{t.loading}</Text>
+                      </View>
+                    ) : emptyComponent !== undefined ? (
+                      <View style={viewportStyle}>{emptyComponent}</View>
+                    ) : (
+                      <View style={[styles.emptyContainer, viewportStyle]}>
+                        <Text style={styles.emptyText}>{t.empty}</Text>
+                      </View>
+                    )
+                  }
+                  ListFooterComponent={
+                    isLoadingMore ? (
+                      <View
+                        style={[styles.footerLoading, viewportStyle]}
+                        accessibilityRole="progressbar"
+                        accessibilityLabel={t.loading}
+                      >
+                        <ActivityIndicator color={tableTheme.primary} />
+                      </View>
+                    ) : null
+                  }
+                />
+              )}
             </View>
           </View>
         </AnimatedGHScrollView>
+
+        {/* Refetch over existing rows: dim the body and block touches, keep the header. */}
+        {isLoading && data.length > 0 && !error && (
+          <View
+            style={[styles.loadingOverlay, { top: currentRowHeight }]}
+            accessibilityRole="progressbar"
+            accessibilityLabel={t.loading}
+          >
+            <View style={styles.loadingOverlayBackdrop} />
+            <ActivityIndicator color={tableTheme.primary} />
+          </View>
+        )}
       </View>
 
       {pagination && (

@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { GestureDetector, GestureType } from 'react-native-gesture-handler';
 import { AlignJustify } from 'lucide-react-native';
-import { RowId, TableRow } from './types';
+import { RowId } from './types';
 import { TableTheme } from './theme/tokens';
 import { TableStyles } from './tableStyles';
 import { Checkbox } from './Checkbox';
@@ -30,7 +30,7 @@ import { SIGNED_DECIMAL_KEYBOARD } from './utils/keyboard';
  * Everything a row needs that is shared by all rows. ModernTable memoizes it, so rows only
  * re-render when something that affects them changes.
  */
-export interface RowContext<T extends TableRow> {
+export interface RowContext<T extends object> {
   columns: PositionedColumn<T>[];
   rowHeight: number;
   showLeadingColumn: boolean;
@@ -52,8 +52,9 @@ export interface RowContext<T extends TableRow> {
   onDragEnd: (index: number, translationY: number) => void;
 }
 
-export interface TableBodyRowProps<T extends TableRow> {
+export interface TableBodyRowProps<T extends object> {
   item: T;
+  rowId: RowId;
   index: number;
   isSelected: boolean;
   /** The cell being edited, only when it belongs to this row. */
@@ -63,8 +64,9 @@ export interface TableBodyRowProps<T extends TableRow> {
   ctx: RowContext<T>;
 }
 
-function TableBodyRowImpl<T extends TableRow>({
+function TableBodyRowImpl<T extends object>({
   item,
+  rowId,
   index,
   isSelected,
   editing,
@@ -92,7 +94,7 @@ function TableBodyRowImpl<T extends TableRow>({
       ) : (
         <Checkbox
           checked={isSelected}
-          onPress={() => ctx.onToggleRow(item.id)}
+          onPress={() => ctx.onToggleRow(rowId)}
           activeColor={theme.primary}
           borderColor={theme.textSecondary}
           checkColor={theme.textInverse}
@@ -197,7 +199,7 @@ function TableBodyRowImpl<T extends TableRow>({
         theme={theme}
         isDragEnabled={ctx.isDragEnabled}
         onDragEnd={ctx.onDragEnd}
-        testID={`row-drag-${item.id}`}
+        testID={`row-drag-${rowId}`}
       >
         {({ dragGesture }) => renderContent(dragGesture)}
       </DraggableRow>

@@ -131,6 +131,72 @@ export function ScoresTable({ data }: { data: Row[] }) {
 }
 ```
 
+### `useTable` options
+
+The third argument is a page size (`useTable(data, columns, 20)`) or an options object:
+
+```tsx
+const table = useTable(data, columns, {
+  pageSize: 20,
+  pageSizeOptions: [20, 50, 100],
+  initialState: { sort: { key: 'score', direction: 'desc' } },
+  locale: 'tr', // collation for sorting text
+  selectAllScope: 'filtered', // or 'page' (default)
+  getRowId: row => row.studentNo, // when rows have no `id`
+});
+```
+
+Rows need an `id` field or a `getRowId` — TypeScript enforces this for both `useTable` and
+`ModernTable`. Memoize `getRowId` and `columns` (a new function / array re-renders every row).
+
+### Server-side data
+
+With `manual: true` the hook stops sorting, filtering and paginating — `data` is the page your
+API returned — and only manages state. Fetch whenever `table.state` changes (search is debounced
+300 ms by default):
+
+```tsx
+const [page, setPage] = useState<{ rows: Row[]; total: number }>({ rows: [], total: 0 });
+const [loading, setLoading] = useState(false);
+const [error, setError] = useState<string>();
+
+const table = useTable(page.rows, columns, { manual: true, rowCount: page.total });
+
+useEffect(() => {
+  let cancelled = false;
+  setLoading(true);
+  fetchStudents(table.state) // { searchQuery, sort, filters, page, pageSize }
+    .then(res => !cancelled && setPage(res))
+    .catch(e => !cancelled && setError(String(e)))
+    .finally(() => !cancelled && setLoading(false));
+  return () => {
+    cancelled = true;
+  };
+}, [table.state]);
+
+<ModernTable
+  columns={columns}
+  {...table.getTableProps()}
+  isLoading={loading}
+  error={error}
+  onRetry={() => setError(undefined)}
+/>;
+```
+
+Without `rowCount`, "next page" stays enabled while the API returns full pages. For infinite
+scroll use `pagination: false` with `onEndReached` / `isLoadingMore`.
+
+### Loading, error, empty, refresh
+
+| Prop | Behaviour |
+|------|-----------|
+| `isLoading` | Spinner instead of the empty state; dims existing rows while refetching |
+| `isLoadingMore` | Spinner below the rows |
+| `error` / `onRetry` | Replaces the rows; a string (or `true`) uses the built-in view with a retry button |
+| `emptyComponent` | Replaces the built-in "No data found." |
+| `refreshing` / `onRefresh` | Pull to refresh |
+| `onEndReached` / `onEndReachedThreshold` | Infinite scroll |
+
 ### State ownership
 
 | Concern | Owner |
@@ -153,6 +219,7 @@ export function ScoresTable({ data }: { data: Row[] }) {
 | `lightTheme` / `darkTheme` / `defaultFontFamily` | Theme tokens |
 | `Column`, `ModernTableProps`, `FilterConfig`, … | Types |
 | `normalizeSearchText` / `includesSearch` | Search helpers |
+| `sortRows`, `filterRows`, `searchRows`, `paginateRows`, … | The data helpers `useTable` uses, for custom pipelines or API mocks |
 
 Toolbar, drag handles, checkbox, and filter modal are **internal** (not part of the stable public surface).
 

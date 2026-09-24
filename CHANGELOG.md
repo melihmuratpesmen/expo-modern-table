@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.3.0
+
+### Added
+
+- `useTable(data, columns, options)` — the third argument may now be an options object
+  (a number still works as the page size): `pageSize`, `pageSizeOptions`, `pagination`,
+  `initialState`, `initialDensity`, `enableSelection`, `selectAllScope`, `getRowId`, `locale`.
+- Server-side mode: `manual`, `rowCount`, `searchDebounceMs`, `onStateChange`, and
+  `table.state` (`{ searchQuery, sort, filters, page, pageSize }`). A new debounced query
+  resets the page without a double fetch.
+- `getRowId` on `useTable` and `ModernTable` — rows no longer need an `id` field. TypeScript
+  requires it when they don't.
+- `ModernTable`: `isLoading`, `isLoadingMore`, `error`, `onRetry`, `emptyComponent`,
+  `refreshing`, `onRefresh`, `onEndReached`, `onEndReachedThreshold`.
+- Translations: `loading`, `error`, `retry`.
+- Exports: `UseTableOptions`, `TableState`, `TableProps`, `ScreenOrientationModule`,
+  `RowIdAccessor`, `ModernTableBaseProps`, and the data helpers (`sortRows`, `filterRows`,
+  `searchRows`, `buildSearchIndex`, `paginateRows`, `getTotalPages`, `compareValues`,
+  `matchesFilter`).
+
+### Changed
+
+- `TableTranslations` has three new required keys. `translations` stays `Partial`, so only code
+  that builds a complete `TableTranslations` object needs them.
+- `ModernTableProps` is now a type alias (`ModernTableBaseProps<T> & RowIdAccessor<T>`) and
+  accepts any object row type.
+- Clearing the search no longer returns to the page you were on before searching.
+
 ## 0.2.0
 
 ### Breaking
