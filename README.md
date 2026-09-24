@@ -202,9 +202,68 @@ scroll use `pagination: false` with `onEndReached` / `isLoadingMore`.
 
 | Concern | Owner |
 |---------|--------|
-| Search, sort, filters, selection, density, visible/sticky columns, pagination | `useTable` (or your own controlled props) |
-| `selectionMode`, `columnOrder` | Semi-controlled — pass props to control, otherwise internal |
+| Search, sort, filters, selection, density, visible/sticky columns, column order and widths, pagination | `useTable` (or your own controlled props) |
+| `selectionMode`, `expandedIds`, and `columnOrder` / `columnWidths` without `useTable` | Semi-controlled — pass props to control, otherwise internal |
 | Cell editing, open filter modal | Always internal to `ModernTable` |
+
+If you pass your own `onColumnReorder` / `onColumnResize` after spreading `getTableProps()`,
+call `table.setColumnOrder` / `table.setColumnWidth` from them — or use `onPreferencesChange`.
+
+### Summary row
+
+```tsx
+const columns: Column<Row>[] = [
+  { key: 'name', title: 'Subject', footer: () => 'Total' },
+  { key: 'net', title: 'Net', footer: 'sum' }, // 'sum' | 'avg' | 'min' | 'max' | 'count' | (rows) => node
+];
+```
+
+With `useTable` the footer covers every row matching the filters (`footerData`), not just the
+current page.
+
+### Expandable rows
+
+```tsx
+<ModernTable
+  columns={columns}
+  {...table.getTableProps()}
+  renderExpandedRow={row => <StudentDetails student={row} />}
+  // optional: expandedIds / onToggleExpand to control which rows are open
+/>
+```
+
+### Export to CSV
+
+```tsx
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
+
+const csv = table.getCsv({ delimiter: ';', bom: true }); // Excel-friendly for tr / European locales
+const uri = FileSystem.cacheDirectory + 'students.csv';
+await FileSystem.writeAsStringAsync(uri, csv);
+await Sharing.shareAsync(uri, { mimeType: 'text/csv' });
+```
+
+`getCsv({ rows })` exports `'filtered'` (default), `'page'`, `'selected'` or `'all'` rows with the
+visible columns in on-screen order. Text that looks like a spreadsheet formula is escaped.
+`toCsv(rows, columns, options)` is exported for use without `useTable`.
+
+### Persisting layout
+
+```tsx
+const table = useTable(data, columns, {
+  onPreferencesChange: prefs => AsyncStorage.setItem('students-table', JSON.stringify(prefs)),
+});
+
+useEffect(() => {
+  AsyncStorage.getItem('students-table').then(saved => {
+    if (saved) table.setPreferences(JSON.parse(saved));
+  });
+}, []);
+```
+
+Preferences cover column visibility and pinning, order, widths, density and page size. Columns
+added in a later version of your app still appear with their defaults.
 
 ---
 
@@ -219,6 +278,9 @@ scroll use `pagination: false` with `onEndReached` / `isLoadingMore`.
 | `useTableTheme` | Resolve light/dark + overrides |
 | `lightTheme` / `darkTheme` / `defaultFontFamily` | Theme tokens |
 | `Column`, `ModernTableProps`, `FilterConfig`, … | Types |
+| `DEFAULT_TRANSLATIONS` / `TR_TRANSLATIONS` | English / Turkish strings |
+| `defaultIcons`, `TableIcons` | Built-in icon set, for `icons` overrides |
+| `toCsv` | CSV export without `useTable` |
 | `normalizeSearchText` / `includesSearch` | Search helpers |
 | `sortRows`, `filterRows`, `searchRows`, `paginateRows`, … | The data helpers `useTable` uses, for custom pipelines or API mocks |
 
@@ -295,6 +357,21 @@ Deeper notes: [`docs/README.md`](./docs/README.md) · deferred / removed props: 
   }}
 />
 ```
+
+Turkish: `translations={TR_TRANSLATIONS}` (or spread it and override a few keys). Sorting follows
+the device locale unless `useTable` gets `locale: 'tr'`; search always folds Turkish letters
+(`İ/I/ı/i`, `ş/s`, …).
+
+### Accessibility
+
+Sort headers announce their direction, checkboxes report checked / mixed, drag handles, expand
+buttons, toolbar and pagination buttons have labels (all translatable), and column widths can be
+changed with screen-reader increment / decrement.
+
+### Web
+
+Works with `react-native-web` (the example runs with `npm run example:web`). Row and column
+drag-reordering depend on gesture-handler's web support.
 
 ---
 

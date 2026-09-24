@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.5.0
+
+### Added
+
+- Summary row: `Column.footer` (`'sum' | 'avg' | 'min' | 'max' | 'count'` or a function) and
+  `footerData` (useTable passes every filtered row).
+- Expandable rows: `renderExpandedRow`, `expandedIds`, `onToggleExpand`.
+- CSV export: `table.getCsv({ rows, delimiter, bom, … })` and `toCsv(rows, columns, options)`,
+  with CSV-injection escaping.
+- Persistable layout: `table.preferences`, `initialPreferences`, `onPreferencesChange`,
+  `setPreferences` (visibility, pinning, column order, widths, density, page size).
+- `useTable` now owns column order and widths (`setColumnOrder`, `setColumnWidth`, passed via
+  `getTableProps`).
+- `TR_TRANSLATIONS`; accessibility roles, labels and states throughout (sort direction, checkbox
+  mixed state, drag handles, toolbar, filter modal, pagination, expand buttons).
+- Icons: `expand`, `collapse`.
+
+### Changed
+
+- `TableTranslations` has 15 new required keys (screen-reader labels). `translations` stays
+  `Partial`.
+- `getTableProps()` also returns `columnOrder`, `onColumnReorder`, `columnWidths`,
+  `onColumnResize` and `footerData`. If you pass your own `onColumnReorder` / `onColumnResize`
+  after the spread, call `table.setColumnOrder` / `table.setColumnWidth` from it.
+
 ## 0.4.0
 
 ### Added

@@ -56,7 +56,7 @@ still has no `translations` for a11y labels (prev/next).
 
 ### `useTable` gaps
 - No controlled mode for individual slices (always owns state; `initialState` seeds it).
-- No `columnOrder` state in `useTable` yet (table manages it).
+- Done in `0.5.0`: `useTable` owns column order and widths.
 - Done in `0.3.0`: `selectAllScope`, `getRowId`, options object.
 
 ### Filter modal
@@ -76,7 +76,8 @@ Done in `0.3.0`: `manual` mode is all-or-nothing. Still open: per-slice manual f
 (e.g. server sorting with client pagination).
 
 ### Accessibility
-No `accessibilityLabel` / role wiring on sort headers, checkboxes, or toolbar actions.
+Done in `0.5.0` (roles, labels, states; translatable). Not yet verified with VoiceOver /
+TalkBack on devices.
 
 ### Fullscreen
 Since `0.2.0` the module is injected via `screenOrientation` (no optional `require`).
@@ -85,8 +86,8 @@ Fullscreen = landscape lock only; hiding app chrome is left to `onFullscreenChan
 ## Intentionally postponed features (not started)
 
 - ~~Column resize~~ — done in `0.4.0`
-- Column pin presets / persistence (AsyncStorage)
-- CSV / export
+- ~~Column pin presets / persistence~~ — `preferences` / `onPreferencesChange` in `0.5.0`
+- ~~CSV / export~~ — `getCsv` / `toCsv` in `0.5.0`
 - Virtualized horizontal sticky improvements
 - iOS list remount on sort (`key={listIdentityKey}`, see KNOWN_ISSUES): re-check on device with
   FlashList v2 whether it is still needed — it resets scroll position on every sort
@@ -115,3 +116,4 @@ Fullscreen = landscape lock only; hiding app chrome is left to `onFullscreenChan
 | `useTable` options, server-side (`manual`) mode, `getRowId` | `0.3.0` | Replaces the "useTable gaps" and "Server-side / remote data" notes |
 | Loading / error / empty states, refresh, infinite scroll | `0.3.0` | `isLoading`, `isLoadingMore`, `error`, `onRetry`, `emptyComponent`, … |
 | Column accessors, flex widths, resize, toolbar slots, bulk actions, icons | `0.4.0` | See CHANGELOG `0.4.0` |
+| Summary row, expandable rows, CSV, preferences, accessibility, TR translations, web | `0.5.0` | See CHANGELOG `0.5.0` |
