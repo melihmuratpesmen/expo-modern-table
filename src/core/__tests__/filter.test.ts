@@ -117,3 +117,25 @@ describe('buildSearchIndex', () => {
     expect(searchRows([{ a: 'ab', b: 'cd' }], 'bc', ['a', 'b'], index)).toEqual([]);
   });
 });
+
+describe('column value getters', () => {
+  type Item = { id: number; meta: { city: string } };
+  const items: Item[] = [
+    { id: 1, meta: { city: 'İzmir' } },
+    { id: 2, meta: { city: 'Ankara' } },
+  ];
+  const city = (i: Item) => i.meta.city;
+
+  it('filters by getValue', () => {
+    const columns: Column<Item>[] = [
+      { key: 'city', title: 'City', getValue: city, filterConfig: { type: 'text' } },
+    ];
+    expect(filterRows(items, { city: 'izm' }, columns).map(i => i.id)).toEqual([1]);
+  });
+
+  it('searches function fields, with and without an index', () => {
+    expect(searchRows(items, 'ank', [city]).map(i => i.id)).toEqual([2]);
+    const index = buildSearchIndex(items, [city]);
+    expect(searchRows(items, 'ank', [city], index).map(i => i.id)).toEqual([2]);
+  });
+});

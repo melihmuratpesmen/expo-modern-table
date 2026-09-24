@@ -160,3 +160,29 @@ export function useTypeChecks() {
   useTable(rows, cols);
   useTable(rows, cols, { getRowId: r => r.code });
 }
+
+describe('useTable column options', () => {
+  type Person = { id: number; first: string; last: string; note: string };
+  const people: Person[] = [
+    { id: 1, first: 'Ada', last: 'Yılmaz', note: 'secret' },
+    { id: 2, first: 'Can', last: 'Demir', note: 'x' },
+  ];
+  const personColumns: Column<Person>[] = [
+    { key: 'fullName', title: 'Name', getValue: p => `${p.first} ${p.last}` },
+    { key: 'note', title: 'Note', searchable: false },
+  ];
+
+  it('searches getValue and skips searchable: false columns', () => {
+    const { result } = renderHook(() => useTable(people, personColumns));
+    act(() => result.current.setSearchQuery('ada yil'));
+    expect(result.current.filteredData.map(p => p.id)).toEqual([1]);
+    act(() => result.current.setSearchQuery('secret'));
+    expect(result.current.filteredData).toEqual([]);
+  });
+
+  it('sorts a computed column', () => {
+    const { result } = renderHook(() => useTable(people, personColumns));
+    act(() => result.current.handleSort('fullName', 'desc'));
+    expect(result.current.sortedData.map(p => p.id)).toEqual([2, 1]);
+  });
+});

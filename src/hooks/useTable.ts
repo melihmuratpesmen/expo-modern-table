@@ -171,26 +171,29 @@ function useTableImpl<T extends object>(
   // priority so typing stays responsive on large data sets.
   const deferredQuery = useDeferredValue(effectiveQuery);
   const isSearching = !manual && deferredQuery.trim() !== '';
+  // Visible, searchable columns; a column's `getValue` is searched instead of `row[key]`.
+  const searchFields = useMemo(() => {
+    const visible = new Set(visibleColumns);
+    return columns
+      .filter(c => c.searchable !== false && visible.has(c.key as string))
+      .map(c => c.getValue ?? (c.key as string));
+  }, [columns, visibleColumns]);
   const searchIndex = useMemo(
-    () => (isSearching ? buildSearchIndex(data, visibleColumns) : undefined),
-    [isSearching, data, visibleColumns]
+    () => (isSearching ? buildSearchIndex(data, searchFields) : undefined),
+    [isSearching, data, searchFields]
   );
 
   const filteredData = useMemo(
     () =>
       manual
         ? data
-        : filterRows(
-            searchRows(data, deferredQuery, visibleColumns, searchIndex),
-            filters,
-            columns
-          ),
-    [manual, data, deferredQuery, visibleColumns, searchIndex, filters, columns]
+        : filterRows(searchRows(data, deferredQuery, searchFields, searchIndex), filters, columns),
+    [manual, data, deferredQuery, searchFields, searchIndex, filters, columns]
   );
 
   const sortedData = useMemo(
-    () => (manual ? data : sortRows(filteredData, sortConfig, collator)),
-    [manual, data, filteredData, sortConfig, collator]
+    () => (manual ? data : sortRows(filteredData, sortConfig, collator, columns)),
+    [manual, data, filteredData, sortConfig, collator, columns]
   );
 
   let totalPages: number;

@@ -1,4 +1,5 @@
-import { SortDirection } from '../types';
+import { Column, SortDirection } from '../types';
+import { getCellValue } from './values';
 
 export interface SortState {
   key: string;
@@ -53,21 +54,32 @@ export function compareValues(
   return collator.compare(String(a), String(b));
 }
 
-/** Returns a new, stably sorted array. Blank values always sort last, in either direction. */
+/**
+ * Returns a new, stably sorted array. Blank values always sort last, in either direction.
+ * Pass `columns` to honour a column's `getValue` and `sortFn`.
+ */
 export function sortRows<T>(
   rows: readonly T[],
   sort: SortState,
-  collator: Intl.Collator = defaultCollator
+  collator: Intl.Collator = defaultCollator,
+  columns?: readonly Column<T>[]
 ): T[] {
   const result = [...rows];
   if (!sort.key || sort.direction === null) return result;
 
-  const key = sort.key as keyof T;
   const factor = sort.direction === 'asc' ? 1 : -1;
+  const column: Partial<Column<T>> & { key: string } = columns?.find(c => c.key === sort.key) ?? {
+    key: sort.key,
+  };
+
+  if (column.sortFn) {
+    const sortFn = column.sortFn;
+    return result.sort((rowA, rowB) => sortFn(rowA, rowB) * factor);
+  }
 
   return result.sort((rowA, rowB) => {
-    const a = rowA[key];
-    const b = rowB[key];
+    const a = getCellValue(rowA, column);
+    const b = getCellValue(rowB, column);
     const blankA = isBlank(a);
     const blankB = isBlank(b);
     if (blankA || blankB) return blankA === blankB ? 0 : blankA ? 1 : -1;

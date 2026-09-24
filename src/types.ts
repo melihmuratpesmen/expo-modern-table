@@ -67,9 +67,29 @@ export const DEFAULT_TRANSLATIONS: TableTranslations = {
 export interface Column<T> {
   key: Extract<keyof T, string> | (string & {});
   title: string;
+  /** Fixed width, or the starting width of a `flex` column. Default 100. */
   width?: number;
+  /** Share of the leftover horizontal space (like flex-grow). */
+  flex?: number;
+  minWidth?: number;
+  maxWidth?: number;
   isSticky?: boolean;
   align?: 'left' | 'center' | 'right';
+  /**
+   * The value used for sorting, filtering, search and the default cell text. Defaults to
+   * `row[key]` — use it for computed or nested values.
+   */
+  getValue?: (row: T) => unknown;
+  /** Default true (when the table has `onSort`). */
+  sortable?: boolean;
+  /** Ascending comparator; replaces the built-in comparison for this column. */
+  sortFn?: (a: T, b: T) => number;
+  /** Include in the toolbar search. Default true. */
+  searchable?: boolean;
+  /** Allow drag-resizing when the table has `enableColumnResize`. Default true. */
+  resizable?: boolean;
+  /** Custom header content in place of the title (sort / filter icons stay). */
+  renderHeader?: (column: Column<T>) => ReactNode;
   renderCell?: (item: T, index: number) => ReactNode;
   /** Tap-to-edit text cell. Needs `onRowChange`; numeric values are written back as numbers. */
   editable?: boolean;

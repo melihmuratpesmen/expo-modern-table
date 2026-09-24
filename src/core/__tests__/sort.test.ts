@@ -77,3 +77,29 @@ describe('sortRows', () => {
     expect(rows).toEqual(copy);
   });
 });
+
+describe('sortRows with columns', () => {
+  type Person = { id: number; name: { first: string }; age: number };
+  const people: Person[] = [
+    { id: 1, name: { first: 'Zehra' }, age: 30 },
+    { id: 2, name: { first: 'Ali' }, age: 25 },
+    { id: 3, name: { first: 'Mert' }, age: 40 },
+  ];
+
+  it('sorts by getValue', () => {
+    const columns = [{ key: 'name', title: 'Name', getValue: (p: Person) => p.name.first }];
+    expect(
+      sortRows(people, { key: 'name', direction: 'asc' }, undefined, columns).map(p => p.id)
+    ).toEqual([2, 3, 1]);
+  });
+
+  it('uses sortFn in both directions', () => {
+    const columns = [{ key: 'age', title: 'Age', sortFn: (a: Person, b: Person) => b.age - a.age }];
+    expect(
+      sortRows(people, { key: 'age', direction: 'asc' }, undefined, columns).map(p => p.age)
+    ).toEqual([40, 30, 25]);
+    expect(
+      sortRows(people, { key: 'age', direction: 'desc' }, undefined, columns).map(p => p.age)
+    ).toEqual([25, 30, 40]);
+  });
+});

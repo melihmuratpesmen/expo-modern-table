@@ -333,6 +333,7 @@ export function ModernTable<T extends object>({
   const renderHeaderCell = (col: PositionedColumn<T>, index: number) => {
     const key = col.key as string;
     const width = getColumnWidth(col);
+    const isSortable = !!onSort && col.sortable !== false;
     const isActiveSort = sortColumn === key;
     const isFiltered = !isEmptyFilterValue(filters?.[key]);
 
@@ -351,9 +352,13 @@ export function ModernTable<T extends object>({
         <TouchableOpacity
           style={[styles.headerContent, { justifyContent: getAlign(col.align) }]}
           onPress={() => onSort?.(key, nextSortDirection(sortColumn, sortDirection, key))}
-          disabled={!onSort}
+          disabled={!isSortable}
         >
-          <Text style={styles.headerText}>{col.title}</Text>
+          {col.renderHeader ? (
+            col.renderHeader(col)
+          ) : (
+            <Text style={styles.headerText}>{col.title}</Text>
+          )}
           {isActiveSort &&
             (sortDirection === 'asc' ? (
               <ChevronUp size={16} color={tableTheme.text} />

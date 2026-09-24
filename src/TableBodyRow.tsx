@@ -25,6 +25,7 @@ import {
   markedCellColor,
 } from './layout';
 import { SIGNED_DECIMAL_KEYBOARD } from './utils/keyboard';
+import { getCellValue } from './core/values';
 
 /**
  * Everything a row needs that is shared by all rows. ModernTable memoizes it, so rows only
@@ -129,7 +130,7 @@ function TableBodyRowImpl<T extends object>({
 
         {ctx.columns.map(col => {
           const key = col.key as string;
-          const value = item[key as keyof T];
+          const rawValue = item[key as keyof T];
           const isEditing = editing?.key === key;
           const canEdit = !!col.editable && ctx.canEdit;
           const stickyStyle = ctx.stickyStyles.get(key);
@@ -158,7 +159,7 @@ function TableBodyRowImpl<T extends object>({
                   defaultValue={editing.initialText}
                   onChangeText={ctx.onEditTextChange}
                   onBlur={() => ctx.onCommitEdit(item, key)}
-                  keyboardType={typeof value === 'number' ? SIGNED_DECIMAL_KEYBOARD : 'default'}
+                  keyboardType={typeof rawValue === 'number' ? SIGNED_DECIMAL_KEYBOARD : 'default'}
                   selectTextOnFocus
                   autoFocus
                   placeholderTextColor={theme.textSecondary}
@@ -180,7 +181,7 @@ function TableBodyRowImpl<T extends object>({
                       ]}
                       numberOfLines={1}
                     >
-                      {String(value)}
+                      {String(getCellValue(item, col))}
                     </Text>
                   )}
                 </TouchableOpacity>

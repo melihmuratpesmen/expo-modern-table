@@ -340,3 +340,42 @@ export function modernTableTypeChecks() {
   const ok = <ModernTable data={[] as NoId[]} columns={[]} getRowId={r => r.code} />;
   return [missing, ok];
 }
+
+describe('ModernTable column options', () => {
+  it('renders getValue as cell text and a custom header', () => {
+    render(
+      <ModernTable
+        data={rows}
+        columns={[
+          {
+            key: 'label',
+            title: 'Label',
+            getValue: r => `${r.name}!`,
+            renderHeader: () => <Text>Custom header</Text>,
+          },
+        ]}
+      />
+    );
+    expect(screen.getByText('Ali!')).toBeTruthy();
+    expect(screen.getByText('Custom header')).toBeTruthy();
+    expect(screen.queryByText('Label')).toBeNull();
+  });
+
+  it('does not sort columns with sortable: false', () => {
+    const onSort = jest.fn();
+    render(
+      <ModernTable
+        data={rows}
+        columns={[
+          { key: 'name', title: 'Name', sortable: false },
+          { key: 'score', title: 'Score' },
+        ]}
+        onSort={onSort}
+      />
+    );
+    fireEvent.press(screen.getByText('Name'));
+    expect(onSort).not.toHaveBeenCalled();
+    fireEvent.press(screen.getByText('Score'));
+    expect(onSort).toHaveBeenCalledWith('score', 'asc');
+  });
+});
