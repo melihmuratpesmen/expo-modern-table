@@ -11,6 +11,11 @@
   `<ModernTable screenOrientation={ScreenOrientation} />`.
 - Header drag (with `enableColumnReorder`) now starts after a short long-press, so
   horizontal scrolling over the header works again.
+- The package now ships compiled ES modules (`lib/module`) and type declarations
+  (`lib/typescript`) through an `exports` map instead of raw TypeScript. Deep imports such
+  as `expo-modern-table/src/...` are no longer allowed — import from `expo-modern-table`.
+- `expo-screen-orientation` and `react-native-svg` are no longer peer dependencies
+  (the package imports neither; `react-native-svg` is still needed by `lucide-react-native`).
 
 ### Fixes
 
@@ -33,6 +38,13 @@
 - `select` filters match numeric cells; `number-range` excludes blank cells.
 - Visible / sticky columns follow `columns` prop changes.
 - Marked columns, modal backdrop and checkbox tick use theme colors (dark mode).
+
+### Packaging
+
+- Built with `react-native-builder-bob`; consumers no longer type-check the library source
+  with their own compiler settings (strict flags such as `exactOptionalPropertyTypes` used
+  to report errors inside the package).
+- `sideEffects: false`; tests are excluded from the tarball.
 
 ### Added
 

@@ -14,8 +14,9 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
+      - run: npm ci # also builds lib/ via the prepare script
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run format:check
       - run: npm test -- --ci
+      - run: npm pack --dry-run

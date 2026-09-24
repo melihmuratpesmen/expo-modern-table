@@ -2,18 +2,31 @@
   "name": "expo-modern-table",
   "version": "0.2.0",
   "description": "A modern, feature-rich data table for Expo and React Native — sorting, filtering, sticky columns, row/column reorder, theming, and more.",
-  "main": "src/index.ts",
-  "types": "src/index.ts",
-  "react-native": "src/index.ts",
-  "source": "src/index.ts",
+  "main": "./lib/module/index.js",
+  "types": "./lib/typescript/index.d.ts",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./lib/typescript/index.d.ts",
+      "default": "./lib/module/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "sideEffects": false,
   "files": [
     "src",
-    "!src/**/__tests__",
+    "lib",
+    "!**/__tests__",
+    "!**/__fixtures__",
+    "!**/__mocks__",
+    "!**/.*",
     "LICENSE",
     "README.md",
     "CHANGELOG.md"
   ],
   "scripts": {
+    "build": "bob build",
+    "prepare": "bob build",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "format": "prettier --write .",
@@ -48,18 +61,11 @@
   "homepage": "https://github.com/melihmuratpesmen/expo-modern-table#readme",
   "peerDependencies": {
     "@shopify/flash-list": ">=1.6.0",
-    "expo-screen-orientation": ">=7.0.0",
     "lucide-react-native": ">=0.300.0",
     "react": ">=18.0.0",
     "react-native": ">=0.73.0",
     "react-native-gesture-handler": ">=2.14.0",
-    "react-native-reanimated": ">=3.6.0",
-    "react-native-svg": ">=14.0.0"
-  },
-  "peerDependenciesMeta": {
-    "expo-screen-orientation": {
-      "optional": true
-    }
+    "react-native-reanimated": ">=3.6.0"
   },
   "devDependencies": {
     "@babel/core": "^7.29.7",
@@ -79,6 +85,7 @@
     "prettier": "^3.9.9",
     "react": "19.1.0",
     "react-native": "0.81.5",
+    "react-native-builder-bob": "^0.43.1",
     "react-native-gesture-handler": "~2.28.0",
     "react-native-reanimated": "~4.1.1",
     "react-native-svg": "15.12.0",
@@ -92,5 +99,23 @@
   },
   "publishConfig": {
     "access": "public"
+  },
+  "react-native-builder-bob": {
+    "source": "src",
+    "output": "lib",
+    "targets": [
+      [
+        "module",
+        {
+          "esm": true
+        }
+      ],
+      [
+        "typescript",
+        {
+          "project": "tsconfig.build.json"
+        }
+      ]
+    ]
   }
 }

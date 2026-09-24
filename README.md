@@ -91,15 +91,22 @@ The previous orientation lock is restored when leaving fullscreen or when the ta
 
 ### Peer dependencies
 
-| Package | Required |
-|---------|----------|
-| `react`, `react-native` | Yes |
-| `@shopify/flash-list` | Yes |
-| `react-native-gesture-handler` | Yes |
-| `react-native-reanimated` | Yes |
-| `react-native-svg` | Yes |
-| `lucide-react-native` | Yes |
-| `expo-screen-orientation` | Optional |
+| Package | Required | Tested with |
+|---------|----------|-------------|
+| `react`, `react-native` | Yes | React 19.1 · RN 0.81 (Expo SDK 54) |
+| `@shopify/flash-list` | Yes — v1 (`>=1.6`) or v2 | 2.x |
+| `react-native-gesture-handler` | Yes | 2.28 |
+| `react-native-reanimated` | Yes | 4.1 |
+| `lucide-react-native` | Yes (icons) | 0.556 |
+| `react-native-svg` | Yes, via `lucide-react-native` | 15.12 |
+| `expo-screen-orientation` | No — only if you pass `screenOrientation` | 9.0 |
+
+### Jest
+
+The package ships ES modules (`lib/module`). If your Jest setup does not already transform
+React Native packages from `node_modules`, add `expo-modern-table` to `transformIgnorePatterns`
+(`jest-expo` and the `react-native` preset need the same for `lucide-react-native`,
+`react-native-reanimated`, etc.).
 
 ---
 
