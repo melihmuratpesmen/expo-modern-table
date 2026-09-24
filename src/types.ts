@@ -42,6 +42,20 @@ export interface TableTranslations {
   loading: string;
   error: string;
   retry: string;
+  // Screen-reader labels
+  selectAll: string;
+  selectRow: string;
+  sortAscending: string;
+  sortDescending: string;
+  previousPage: string;
+  nextPage: string;
+  rowsPerPage: string;
+  fullscreen: string;
+  density: string;
+  reorderRows: string;
+  dragToReorder: string;
+  pinColumn: string;
+  close: string;
 }
 
 export const DEFAULT_TRANSLATIONS: TableTranslations = {
@@ -63,6 +77,54 @@ export const DEFAULT_TRANSLATIONS: TableTranslations = {
   loading: 'Loading…',
   error: 'Something went wrong.',
   retry: 'Retry',
+  selectAll: 'Select all',
+  selectRow: 'Select row',
+  sortAscending: 'sorted ascending',
+  sortDescending: 'sorted descending',
+  previousPage: 'Previous page',
+  nextPage: 'Next page',
+  rowsPerPage: 'rows per page',
+  fullscreen: 'Fullscreen',
+  density: 'Row density',
+  reorderRows: 'Reorder rows',
+  dragToReorder: 'Drag to reorder',
+  pinColumn: 'Pin column',
+  close: 'Close',
+};
+
+/** Turkish translations: `translations={TR_TRANSLATIONS}`. */
+export const TR_TRANSLATIONS: TableTranslations = {
+  searchPlaceholder: 'Ara...',
+  all: 'Tümü',
+  yesActive: 'Evet',
+  noPassive: 'Hayır',
+  min: 'En az',
+  max: 'En çok',
+  unknownFilter: 'Bilinmeyen filtre',
+  filter: 'Filtrele',
+  clear: 'Temizle',
+  apply: 'Uygula',
+  selected: 'Seçili',
+  columns: 'Sütunlar',
+  show: 'Göster:',
+  page: 'Sayfa',
+  empty: 'Kayıt bulunamadı.',
+  loading: 'Yükleniyor…',
+  error: 'Bir şeyler ters gitti.',
+  retry: 'Tekrar dene',
+  selectAll: 'Tümünü seç',
+  selectRow: 'Satırı seç',
+  sortAscending: 'artan sıralı',
+  sortDescending: 'azalan sıralı',
+  previousPage: 'Önceki sayfa',
+  nextPage: 'Sonraki sayfa',
+  rowsPerPage: 'satır / sayfa',
+  fullscreen: 'Tam ekran',
+  density: 'Satır yoğunluğu',
+  reorderRows: 'Satırları sırala',
+  dragToReorder: 'Sürükleyerek taşı',
+  pinColumn: 'Sütunu sabitle',
+  close: 'Kapat',
 };
 
 export interface Column<T> {

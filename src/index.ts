@@ -24,7 +24,7 @@ export type {
   ModernTableProps,
   ModernTableBaseProps,
 } from './types';
-export { DEFAULT_TRANSLATIONS } from './types';
+export { DEFAULT_TRANSLATIONS, TR_TRANSLATIONS } from './types';
 
 export { normalizeSearchText, includesSearch, matchesSearchFields } from './utils/search';
 

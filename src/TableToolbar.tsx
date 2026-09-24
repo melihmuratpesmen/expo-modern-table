@@ -119,6 +119,7 @@ export function TableToolbar<T>({
             placeholder={selectedCount > 0 ? translations.selected : translations.searchPlaceholder}
             placeholderTextColor={theme.textSecondary}
             value={searchQuery ?? ''}
+            accessibilityLabel={translations.searchPlaceholder}
             onChangeText={onSearchChange}
           />
         </View>
@@ -150,7 +151,7 @@ export function TableToolbar<T>({
               style={styles.iconButton}
               activeOpacity={0.7}
               accessibilityRole="button"
-              accessibilityLabel="Fullscreen"
+              accessibilityLabel={translations.fullscreen}
               accessibilityState={{ selected: isFullscreen }}
             >
               {isFullscreen ? (
@@ -167,6 +168,9 @@ export function TableToolbar<T>({
               onPress={onToggleSelectionMode}
               style={[styles.iconButton, selectionMode === 'reorder' && styles.activeModeButton]}
               activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={translations.reorderRows}
+              accessibilityState={{ selected: selectionMode === 'reorder' }}
             >
               {selectionMode === 'select' ? (
                 <icons.selectMode size={20} color={theme.text} />
@@ -177,7 +181,14 @@ export function TableToolbar<T>({
           )}
 
           {onDensityChange && (
-            <TouchableOpacity onPress={cycleDensity} style={styles.iconButton} activeOpacity={0.7}>
+            <TouchableOpacity
+              onPress={cycleDensity}
+              style={styles.iconButton}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={translations.density}
+              accessibilityValue={{ text: density }}
+            >
               <icons.density size={20} color={theme.text} />
             </TouchableOpacity>
           )}
@@ -187,6 +198,8 @@ export function TableToolbar<T>({
               onPress={() => setIsMenuOpen(true)}
               style={styles.iconButton}
               activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={translations.columns}
             >
               <icons.columns size={20} color={theme.text} />
             </TouchableOpacity>
@@ -208,7 +221,12 @@ export function TableToolbar<T>({
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>{translations.columns}</Text>
-              <TouchableOpacity onPress={() => setIsMenuOpen(false)}>
+              <TouchableOpacity
+                onPress={() => setIsMenuOpen(false)}
+                accessibilityRole="button"
+                accessibilityLabel={translations.close}
+                hitSlop={8}
+              >
                 <icons.close size={24} color={theme.text} />
               </TouchableOpacity>
             </View>
@@ -226,6 +244,11 @@ export function TableToolbar<T>({
                           styles.pinButton,
                           stickyColumns?.includes(col.key as string) && styles.pinActive,
                         ]}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${translations.pinColumn} ${col.title}`}
+                        accessibilityState={{
+                          selected: !!stickyColumns?.includes(col.key as string),
+                        }}
                       >
                         <icons.pin
                           size={18}
@@ -240,6 +263,7 @@ export function TableToolbar<T>({
 
                     <Switch
                       value={visibleColumns.includes(col.key as string)}
+                      accessibilityLabel={col.title}
                       onValueChange={() => onToggleColumn?.(col.key as string)}
                       trackColor={{
                         false: theme.border,

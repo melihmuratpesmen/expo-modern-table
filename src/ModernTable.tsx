@@ -362,6 +362,7 @@ export function ModernTable<T extends object>({
           checked={!!isAllSelected}
           indeterminate={!isAllSelected && !!isSomeSelected}
           onPress={() => onToggleAll?.()}
+          accessibilityLabel={t.selectAll}
           activeColor={tableTheme.primary}
           borderColor={tableTheme.textSecondary}
           checkColor={tableTheme.textInverse}
@@ -393,6 +394,13 @@ export function ModernTable<T extends object>({
           style={[styles.headerContent, { justifyContent: getAlign(col.align) }]}
           onPress={() => onSort?.(key, nextSortDirection(sortColumn, sortDirection, key))}
           disabled={!isSortable}
+          accessibilityRole={isSortable ? 'button' : 'header'}
+          accessibilityLabel={col.title}
+          accessibilityValue={
+            isActiveSort && sortDirection
+              ? { text: sortDirection === 'asc' ? t.sortAscending : t.sortDescending }
+              : undefined
+          }
         >
           {col.renderHeader ? (
             col.renderHeader(col)
@@ -467,6 +475,10 @@ export function ModernTable<T extends object>({
   };
 
   // --- ROWS ---
+  const rowLabels = useMemo(
+    () => ({ selectRow: t.selectRow, dragToReorder: t.dragToReorder }),
+    [t.selectRow, t.dragToReorder]
+  );
   const canEdit = !!onRowChange;
   const isPressable = !!onRowPress;
   const rowContext = useMemo<RowContext<T>>(
@@ -490,6 +502,7 @@ export function ModernTable<T extends object>({
       onEditTextChange: handleEditTextChange,
       onCommitEdit: commitEdit,
       onDragEnd: handleRowDragEnd,
+      labels: rowLabels,
     }),
     [
       columnsWithOffsets,
@@ -511,6 +524,7 @@ export function ModernTable<T extends object>({
       handleEditTextChange,
       commitEdit,
       handleRowDragEnd,
+      rowLabels,
     ]
   );
 
@@ -714,6 +728,9 @@ export function ModernTable<T extends object>({
                           pagination.itemsPerPage === option && styles.perPageButtonActive,
                         ]}
                         onPress={() => pagination.onItemsPerPageChange?.(option)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${option} ${t.rowsPerPage}`}
+                        accessibilityState={{ selected: pagination.itemsPerPage === option }}
                       >
                         <Text
                           style={[
@@ -738,6 +755,9 @@ export function ModernTable<T extends object>({
                 <TouchableOpacity
                   disabled={pagination.currentPage === 1}
                   onPress={() => pagination.onPageChange(pagination.currentPage - 1)}
+                  accessibilityRole="button"
+                  accessibilityLabel={t.previousPage}
+                  accessibilityState={{ disabled: pagination.currentPage === 1 }}
                   style={[styles.pageButton, pagination.currentPage === 1 && styles.disabledButton]}
                 >
                   <icons.previousPage
@@ -750,6 +770,11 @@ export function ModernTable<T extends object>({
                 <TouchableOpacity
                   disabled={pagination.currentPage === pagination.totalPages}
                   onPress={() => pagination.onPageChange(pagination.currentPage + 1)}
+                  accessibilityRole="button"
+                  accessibilityLabel={t.nextPage}
+                  accessibilityState={{
+                    disabled: pagination.currentPage === pagination.totalPages,
+                  }}
                   style={[
                     styles.pageButton,
                     pagination.currentPage === pagination.totalPages && styles.disabledButton,

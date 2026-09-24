@@ -73,6 +73,8 @@ export function ColumnFilterModal({
             <TouchableOpacity
               style={[styles.optionItem, !tempValue && styles.optionItemActive]}
               onPress={() => setTempValue(undefined)}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: !tempValue }}
             >
               <Text style={[styles.optionText, !tempValue && styles.optionTextActive]}>
                 {translations.all}
@@ -85,6 +87,8 @@ export function ColumnFilterModal({
                 key={option}
                 style={[styles.optionItem, tempValue === option && styles.optionItemActive]}
                 onPress={() => setTempValue(option === tempValue ? undefined : option)}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: tempValue === option }}
               >
                 <Text style={[styles.optionText, tempValue === option && styles.optionTextActive]}>
                   {option}
@@ -101,6 +105,8 @@ export function ColumnFilterModal({
             <TouchableOpacity
               style={[styles.booleanButton, tempValue === true && styles.booleanButtonActive]}
               onPress={() => setTempValue(true)}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: tempValue === true }}
             >
               <Text style={[styles.booleanText, tempValue === true && styles.booleanTextActive]}>
                 {translations.yesActive}
@@ -109,6 +115,8 @@ export function ColumnFilterModal({
             <TouchableOpacity
               style={[styles.booleanButton, tempValue === false && styles.booleanButtonActive]}
               onPress={() => setTempValue(false)}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: tempValue === false }}
             >
               <Text style={[styles.booleanText, tempValue === false && styles.booleanTextActive]}>
                 {translations.noPassive}
@@ -125,6 +133,7 @@ export function ColumnFilterModal({
               <TextInput
                 style={styles.input}
                 placeholder="0"
+                accessibilityLabel={`${columnTitle} ${translations.min}`}
                 placeholderTextColor={tableTheme.textSecondary}
                 keyboardType={SIGNED_DECIMAL_KEYBOARD}
                 value={minText}
@@ -136,6 +145,7 @@ export function ColumnFilterModal({
               <TextInput
                 style={styles.input}
                 placeholder="100"
+                accessibilityLabel={`${columnTitle} ${translations.max}`}
                 placeholderTextColor={tableTheme.textSecondary}
                 keyboardType={SIGNED_DECIMAL_KEYBOARD}
                 value={maxText}
@@ -164,7 +174,12 @@ export function ColumnFilterModal({
             <Text style={styles.title}>
               {translations.filter} {columnTitle}
             </Text>
-            <TouchableOpacity onPress={onClose}>
+            <TouchableOpacity
+              onPress={onClose}
+              accessibilityRole="button"
+              accessibilityLabel={translations.close}
+              hitSlop={8}
+            >
               <icons.close size={20} color={tableTheme.textSecondary} />
             </TouchableOpacity>
           </View>
@@ -172,10 +187,18 @@ export function ColumnFilterModal({
           <View style={styles.body}>{renderFilterInput()}</View>
 
           <View style={styles.footer}>
-            <TouchableOpacity style={styles.clearButton} onPress={cleanFilter}>
+            <TouchableOpacity
+              style={styles.clearButton}
+              onPress={cleanFilter}
+              accessibilityRole="button"
+            >
               <Text style={styles.clearButtonText}>{translations.clear}</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.applyButton} onPress={handleApply}>
+            <TouchableOpacity
+              style={styles.applyButton}
+              onPress={handleApply}
+              accessibilityRole="button"
+            >
               <Text style={styles.applyButtonText}>{translations.apply}</Text>
             </TouchableOpacity>
           </View>

@@ -4,7 +4,7 @@ import { fireGestureHandler, getByGestureTestId } from 'react-native-gesture-han
 import { State } from 'react-native-gesture-handler';
 import { Text } from 'react-native';
 import { ModernTable } from '../ModernTable';
-import { Column } from '../types';
+import { Column, TR_TRANSLATIONS } from '../types';
 
 // FlashList schedules layout updates on timers; keep them from firing outside act().
 jest.useFakeTimers();
@@ -533,5 +533,60 @@ describe('ModernTable icons', () => {
     renderName.mockClear();
     view.rerender(<ModernTable data={rows} columns={columns} icons={{ filter: FilterIcon }} />);
     expect(renderName).not.toHaveBeenCalled();
+  });
+});
+
+describe('ModernTable accessibility', () => {
+  const columns: Column<Row>[] = [
+    { key: 'name', title: 'Name' },
+    { key: 'score', title: 'Score', sortable: false },
+  ];
+
+  it('labels sortable headers and reports the sort direction', () => {
+    render(
+      <ModernTable
+        data={rows}
+        columns={columns}
+        onSort={jest.fn()}
+        sortColumn="name"
+        sortDirection="desc"
+      />
+    );
+    const name = screen.getByRole('button', { name: 'Name' });
+    expect(name.props.accessibilityValue).toEqual({ text: 'sorted descending' });
+    expect(screen.getByRole('header', { name: 'Score' })).toBeTruthy();
+  });
+
+  it('labels checkboxes, toolbar buttons and pagination', () => {
+    render(
+      <ModernTable
+        data={rows}
+        columns={columns}
+        enableSelection
+        selectedIds={new Set()}
+        onDensityChange={jest.fn()}
+        onToggleColumn={jest.fn()}
+        pagination={{ currentPage: 1, totalPages: 2, itemsPerPage: 10, onPageChange: jest.fn() }}
+      />
+    );
+    expect(screen.getByRole('checkbox', { name: 'Select all' })).toBeTruthy();
+    expect(screen.getAllByRole('checkbox', { name: 'Select row' })).toHaveLength(rows.length);
+    expect(screen.getByRole('button', { name: 'Row density' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Columns' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Previous page' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Next page' })).toBeEnabled();
+  });
+
+  it('uses TR_TRANSLATIONS', () => {
+    render(
+      <ModernTable
+        data={[]}
+        columns={columns}
+        onSearchChange={jest.fn()}
+        translations={TR_TRANSLATIONS}
+      />
+    );
+    expect(screen.getByPlaceholderText('Ara...')).toBeTruthy();
+    expect(screen.getByText('Kayıt bulunamadı.')).toBeTruthy();
   });
 });

@@ -50,6 +50,7 @@ export interface RowContext<T extends object> {
   onEditTextChange: (text: string) => void;
   onCommitEdit: (item: T, key: string) => void;
   onDragEnd: (index: number, translationY: number) => void;
+  labels: { selectRow: string; dragToReorder: string };
 }
 
 export interface TableBodyRowProps<T extends object> {
@@ -90,11 +91,12 @@ function TableBodyRowImpl<T extends object>({
       ]}
     >
       {ctx.isReorderMode ? (
-        <DragHandle gesture={dragGesture} color={theme.text} />
+        <DragHandle gesture={dragGesture} color={theme.text} label={ctx.labels.dragToReorder} />
       ) : (
         <Checkbox
           checked={isSelected}
           onPress={() => ctx.onToggleRow(rowId)}
+          accessibilityLabel={ctx.labels.selectRow}
           activeColor={theme.primary}
           borderColor={theme.textSecondary}
           checkColor={theme.textInverse}
@@ -209,10 +211,18 @@ function TableBodyRowImpl<T extends object>({
   return renderContent();
 }
 
-function DragHandle({ gesture, color }: { gesture?: GestureType; color: string }) {
+function DragHandle({
+  gesture,
+  color,
+  label,
+}: {
+  gesture?: GestureType;
+  color: string;
+  label: string;
+}) {
   const icons = useTableIcons();
   const handle = (
-    <View style={{ opacity: 0.5 }}>
+    <View style={{ opacity: 0.5 }} accessible accessibilityLabel={label}>
       <icons.dragHandle size={20} color={color} />
     </View>
   );
