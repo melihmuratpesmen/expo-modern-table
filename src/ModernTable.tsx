@@ -30,7 +30,6 @@ import {
   ModernTableProps,
   Column,
   Density,
-  SortDirection,
   SelectionMode,
   TableRow,
   DEFAULT_TRANSLATIONS,
@@ -42,6 +41,7 @@ import { useTableTheme } from './hooks/useTableTheme';
 import { TableTheme } from './theme/tokens';
 import { DraggableHeader } from './DraggableHeader';
 import { DraggableRow } from './DraggableRow';
+import { nextSortDirection } from './core/sort';
 
 const CHECKBOX_WIDTH = 50;
 
@@ -50,16 +50,6 @@ const ROW_HEIGHTS: Record<Density, number> = {
   standard: 48,
   comfortable: 64,
 };
-
-function nextSortDirection(
-  currentColumn: string | undefined,
-  currentDirection: SortDirection | undefined,
-  pressedKey: string
-): SortDirection {
-  if (currentColumn !== pressedKey || !currentDirection) return 'asc';
-  if (currentDirection === 'asc') return 'desc';
-  return null;
-}
 
 // Helper: Darken hex color by amount (0-100)
 const darkenHex = (color: string | undefined, amount: number) => {

@@ -1,8 +1,8 @@
 /**
- * Türkçe arama yardımcıları.
+ * Locale-safe search helpers (Turkish-aware).
  *
- * - ı / i / I / İ hepsi aynı harfe (`i`) katlanır — birbirini destekler
- * - Aksan sadeleştirme: ş→s, ğ→g, ü→u, ö→o, ç→c
+ * - ı / i / I / İ all fold to `i`, so each matches the others
+ * - Diacritics are stripped: ş→s, ğ→g, ü→u, ö→o, ç→c
  */
 
 /** LATIN CAPITAL LETTER I WITH DOT ABOVE */
@@ -14,19 +14,19 @@ export function normalizeSearchText(value: string | null | undefined): string {
   return (
     String(value ?? '')
       .trim()
-      // i ailesi: locale'e güvenmeden eşitle (İ / I / ı / i → i)
+      // Fold the i family without relying on the runtime locale (İ / I / ı / i → i)
       .replace(TURKISH_CAPITAL_I_DOT, 'i')
       .replace(/I/g, 'i')
       .replace(TURKISH_DOTLESS_I, 'i')
       .toLocaleLowerCase('tr-TR')
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
-      // NFD / locale sonrası kalan noktasız ı
+      // Any dotless ı left over after NFD / locale lowering
       .replace(TURKISH_DOTLESS_I, 'i')
   );
 }
 
-/** Türkçe büyük/küçük harf ve aksan duyarsız alt dizgi eşleşmesi. Boş needle → true. */
+/** Case- and diacritic-insensitive substring match. An empty needle matches everything. */
 export function includesSearch(
   haystack: string | null | undefined,
   needle: string | null | undefined
@@ -36,7 +36,7 @@ export function includesSearch(
   return normalizeSearchText(haystack).includes(normalizedNeedle);
 }
 
-/** Birden fazla alanda arama. Boş query → true. */
+/** Matches when any field contains the query. An empty query matches everything. */
 export function matchesSearchFields(
   fields: Array<string | number | null | undefined>,
   query: string | null | undefined

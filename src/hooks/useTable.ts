@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import {
   SortDirection,
   Column,
@@ -8,216 +8,134 @@ import {
   TableRow,
   ModernTableProps,
 } from '../types';
-import { includesSearch, normalizeSearchText } from '../utils/search';
+import { nextSortDirection, sortRows, SortState } from '../core/sort';
+import { filterRows, isEmptyFilterValue, searchRows } from '../core/filter';
+import { clampPage, getTotalPages, paginateRows } from '../core/pagination';
+import { getSelectionState, toggleId, toggleIds } from '../core/selection';
 
-function cycleSortDirection(
-  currentKey: string,
-  currentDirection: SortDirection,
-  nextKey: string
-): SortDirection {
-  if (currentKey !== nextKey || currentDirection === null) return 'asc';
-  if (currentDirection === 'asc') return 'desc';
-  return null;
+/** Column keys whose flag is on: a user override wins, otherwise the column default. */
+function resolveColumnFlags<T>(
+  columns: readonly Column<T>[],
+  overrides: Record<string, boolean>,
+  getDefault: (column: Column<T>) => boolean
+): string[] {
+  return columns.filter(c => overrides[c.key as string] ?? getDefault(c)).map(c => c.key as string);
 }
+
+const isVisibleByDefault = <T>(c: Column<T>) => !c.hidden;
+const isStickyByDefault = <T>(c: Column<T>) => !!c.isSticky;
 
 export function useTable<T extends TableRow>(
   data: T[],
   columns: Column<T>[],
   initialItemsPerPage: number = 10
 ) {
-  const [itemsPerPage, setItemsPerPage] = useState(initialItemsPerPage);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedIds, setSelectedIds] = useState<Set<RowId>>(new Set());
+  const [itemsPerPage, setItemsPerPageState] = useState(initialItemsPerPage);
+  const [requestedPage, setRequestedPage] = useState(1);
+  const [searchQuery, setSearchQueryState] = useState('');
+  const [selectedIds, setSelectedIds] = useState<Set<RowId>>(() => new Set());
   const [filters, setFilters] = useState<Record<string, FilterValue>>({});
   const [density, setDensity] = useState<Density>('standard');
-  const [visibleColumns, setVisibleColumns] = useState<string[]>(() =>
-    columns.filter(c => !c.hidden).map(c => c.key as string)
-  );
-  const [stickyColumns, setStickyColumns] = useState<string[]>(() =>
-    columns.filter(c => c.isSticky).map(c => c.key as string)
-  );
-  const [sortConfig, setSortConfig] = useState<{
-    key: string;
-    direction: SortDirection;
-  }>({ key: '', direction: null });
+  const [visibilityOverrides, setVisibilityOverrides] = useState<Record<string, boolean>>({});
+  const [stickyOverrides, setStickyOverrides] = useState<Record<string, boolean>>({});
+  const [sortConfig, setSortConfig] = useState<SortState>({ key: '', direction: null });
 
-  // Keep visibility / sticky in sync when column keys change
-  useEffect(() => {
-    const keys = columns.map(c => c.key as string);
-    const keySet = new Set(keys);
+  // Derived from `columns` on every change, so added / removed / re-flagged columns are
+  // picked up without syncing state in an effect.
+  const visibleColumns = useMemo(
+    () => resolveColumnFlags(columns, visibilityOverrides, isVisibleByDefault),
+    [columns, visibilityOverrides]
+  );
+  const stickyColumns = useMemo(
+    () => resolveColumnFlags(columns, stickyOverrides, isStickyByDefault),
+    [columns, stickyOverrides]
+  );
 
-    setVisibleColumns(prev => {
-      const kept = prev.filter(k => keySet.has(k));
-      const added = columns
-        .filter(c => !c.hidden && !kept.includes(c.key as string))
-        .map(c => c.key as string);
-      const next = [...kept, ...added];
-      if (next.length === prev.length && next.every((k, i) => k === prev[i])) {
-        return prev;
-      }
-      return next;
+  const filteredData = useMemo(
+    () => filterRows(searchRows(data, searchQuery, visibleColumns), filters, columns),
+    [data, searchQuery, visibleColumns, filters, columns]
+  );
+
+  const sortedData = useMemo(() => sortRows(filteredData, sortConfig), [filteredData, sortConfig]);
+
+  const totalPages = getTotalPages(filteredData.length, itemsPerPage);
+  const currentPage = clampPage(requestedPage, totalPages);
+
+  const paginatedData = useMemo(
+    () => paginateRows(sortedData, currentPage, itemsPerPage),
+    [sortedData, currentPage, itemsPerPage]
+  );
+
+  const setCurrentPage = useCallback((page: number) => setRequestedPage(page), []);
+
+  const setSearchQuery = useCallback((query: string) => {
+    setSearchQueryState(query);
+    setRequestedPage(1);
+  }, []);
+
+  const setItemsPerPage = useCallback((size: number) => {
+    setItemsPerPageState(size);
+    setRequestedPage(1);
+  }, []);
+
+  const handleSort = useCallback((key: string, direction?: SortDirection) => {
+    setSortConfig(prev => {
+      const next =
+        direction !== undefined ? direction : nextSortDirection(prev.key, prev.direction, key);
+      return { key: next === null ? '' : key, direction: next };
     });
-
-    setStickyColumns(prev => {
-      const kept = prev.filter(k => keySet.has(k));
-      const added = columns
-        .filter(c => c.isSticky && !kept.includes(c.key as string))
-        .map(c => c.key as string);
-      const next = [...kept, ...added];
-      if (next.length === prev.length && next.every((k, i) => k === prev[i])) {
-        return prev;
-      }
-      return next;
-    });
-  }, [columns]);
-
-  const filteredData = useMemo(() => {
-    let result = data;
-
-    if (searchQuery) {
-      const normalizedQuery = normalizeSearchText(searchQuery);
-      result = result.filter(item =>
-        Object.values(item).some(val => includesSearch(String(val), normalizedQuery))
-      );
-    }
-
-    if (Object.keys(filters).length > 0) {
-      result = result.filter(item =>
-        Object.entries(filters).every(([key, filterValue]) => {
-          if (filterValue === undefined || filterValue === '') return true;
-
-          const itemValue = item[key as keyof T];
-          const colConfig = columns.find(c => c.key === key)?.filterConfig;
-
-          switch (colConfig?.type) {
-            case 'text':
-              return includesSearch(String(itemValue), String(filterValue));
-            case 'select':
-              return itemValue === filterValue;
-            case 'boolean':
-              return Boolean(itemValue) === (filterValue === true || filterValue === 'true');
-            case 'number-range': {
-              const range = filterValue as { min?: number; max?: number };
-              const numVal = Number(itemValue);
-              if (range.min !== undefined && numVal < range.min) return false;
-              if (range.max !== undefined && numVal > range.max) return false;
-              return true;
-            }
-            default:
-              return true;
-          }
-        })
-      );
-    }
-
-    return result;
-  }, [data, searchQuery, filters, columns]);
-
-  const sortedData = useMemo(() => {
-    const sortableItems = [...filteredData];
-
-    if (sortConfig.direction !== null && sortConfig.key) {
-      const key = sortConfig.key as keyof T;
-      sortableItems.sort((a, b) => {
-        const aValue = a[key];
-        const bValue = b[key];
-        const isNum = !isNaN(Number(aValue)) && !isNaN(Number(bValue));
-
-        if (isNum) {
-          const numA = Number(aValue);
-          const numB = Number(bValue);
-          if (numA < numB) return sortConfig.direction === 'asc' ? -1 : 1;
-          if (numA > numB) return sortConfig.direction === 'asc' ? 1 : -1;
-          return 0;
-        }
-
-        if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
-        if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
-        return 0;
-      });
-    }
-
-    return sortableItems;
-  }, [filteredData, sortConfig]);
-
-  const totalPages = Math.max(1, Math.ceil(filteredData.length / itemsPerPage) || 1);
-
-  const paginatedData = useMemo(() => {
-    if (filteredData.length === 0) return [];
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    return sortedData.slice(startIndex, startIndex + itemsPerPage);
-  }, [sortedData, currentPage, itemsPerPage, filteredData.length]);
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchQuery, filters]);
-
-  useEffect(() => {
-    if (currentPage > totalPages) {
-      setCurrentPage(totalPages);
-    }
-  }, [currentPage, totalPages]);
-
-  const handleSort = useCallback(
-    (key: string, direction?: SortDirection) => {
-      const nextDirection =
-        direction !== undefined
-          ? direction
-          : cycleSortDirection(sortConfig.key, sortConfig.direction, key);
-
-      setSortConfig({
-        key: nextDirection === null ? '' : key,
-        direction: nextDirection,
-      });
-    },
-    [sortConfig.key, sortConfig.direction]
-  );
+  }, []);
 
   const setColumnFilter = useCallback((key: string, value: FilterValue) => {
     setFilters(prev => {
       const next = { ...prev };
-      if (value === null || value === undefined || value === '') {
-        delete next[key];
-      } else {
-        next[key] = value;
-      }
+      if (isEmptyFilterValue(value)) delete next[key];
+      else next[key] = value;
       return next;
     });
+    setRequestedPage(1);
   }, []);
 
   const toggleSelection = useCallback((id: RowId) => {
-    setSelectedIds(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+    setSelectedIds(prev => toggleId(prev, id));
   }, []);
 
+  /** Selects / deselects the current page. Selections on other pages are kept. */
   const toggleAllSelection = useCallback(() => {
-    if (paginatedData.length === 0) return;
-    setSelectedIds(prev => {
-      const allSelected = paginatedData.every(item => prev.has(item.id));
-      if (allSelected) return new Set();
-      return new Set(paginatedData.map(item => item.id));
-    });
+    const pageIds = paginatedData.map(item => item.id);
+    setSelectedIds(prev => toggleIds(prev, pageIds));
   }, [paginatedData]);
 
-  const toggleColumnVisibility = useCallback((columnKey: string) => {
-    setVisibleColumns(prev =>
-      prev.includes(columnKey) ? prev.filter(c => c !== columnKey) : [...prev, columnKey]
-    );
-  }, []);
+  const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
 
-  const toggleStickyColumn = useCallback((columnKey: string) => {
-    setStickyColumns(prev =>
-      prev.includes(columnKey) ? prev.filter(c => c !== columnKey) : [...prev, columnKey]
-    );
-  }, []);
+  const toggleColumnVisibility = useCallback(
+    (columnKey: string) => {
+      setVisibilityOverrides(prev => {
+        const column = columns.find(c => c.key === columnKey);
+        const current = prev[columnKey] ?? (column ? isVisibleByDefault(column) : false);
+        return { ...prev, [columnKey]: !current };
+      });
+    },
+    [columns]
+  );
 
-  const isAllSelected =
-    paginatedData.length > 0 && paginatedData.every(item => selectedIds.has(item.id));
+  const toggleStickyColumn = useCallback(
+    (columnKey: string) => {
+      setStickyOverrides(prev => {
+        const column = columns.find(c => c.key === columnKey);
+        const current = prev[columnKey] ?? (column ? isStickyByDefault(column) : false);
+        return { ...prev, [columnKey]: !current };
+      });
+    },
+    [columns]
+  );
+
+  const pageSelection = getSelectionState(
+    selectedIds,
+    paginatedData.map(item => item.id)
+  );
+  const isAllSelected = pageSelection === 'all';
+  const isSomeSelected = pageSelection === 'some';
 
   const getTableProps = useCallback((): Pick<
     ModernTableProps<T>,
@@ -274,6 +192,7 @@ export function useTable<T extends TableRow>(
   }, [
     paginatedData,
     searchQuery,
+    setSearchQuery,
     sortConfig.key,
     sortConfig.direction,
     handleSort,
@@ -291,6 +210,8 @@ export function useTable<T extends TableRow>(
     currentPage,
     totalPages,
     itemsPerPage,
+    setCurrentPage,
+    setItemsPerPage,
   ]);
 
   return {
@@ -314,7 +235,9 @@ export function useTable<T extends TableRow>(
     selectedIds,
     toggleSelection,
     toggleAllSelection,
+    clearSelection,
     isAllSelected,
+    isSomeSelected,
 
     // Appearance
     density,
