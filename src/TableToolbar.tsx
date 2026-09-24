@@ -9,17 +9,7 @@ import {
   ScrollView,
   Switch,
 } from 'react-native';
-import {
-  Search,
-  Eye,
-  X,
-  Pin,
-  Maximize2,
-  Minimize2,
-  Scaling,
-  ListChecks,
-  ArrowUpDown,
-} from 'lucide-react-native';
+import { useTableIcons } from './icons';
 import { Density, Column, TableTranslations } from './types';
 import { TableTheme, themeFallbacks } from './theme/tokens';
 import {
@@ -74,6 +64,7 @@ export function TableToolbar<T>({
   actions,
   bulkActions,
 }: TableToolbarProps<T>) {
+  const icons = useTableIcons();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const {
     isFullscreen,
@@ -117,7 +108,7 @@ export function TableToolbar<T>({
           {selectedCount > 0 ? (
             selectionBadge
           ) : (
-            <Search size={20} color={theme.textSecondary} style={styles.searchIcon} />
+            <icons.search size={20} color={theme.textSecondary} style={styles.searchIcon} />
           )}
           <TextInput
             style={styles.input}
@@ -158,9 +149,9 @@ export function TableToolbar<T>({
             accessibilityState={{ selected: isFullscreen }}
           >
             {isFullscreen ? (
-              <Minimize2 size={20} color={theme.text} />
+              <icons.exitFullscreen size={20} color={theme.text} />
             ) : (
-              <Maximize2 size={20} color={theme.text} />
+              <icons.fullscreen size={20} color={theme.text} />
             )}
           </TouchableOpacity>
         )}
@@ -173,16 +164,16 @@ export function TableToolbar<T>({
             activeOpacity={0.7}
           >
             {selectionMode === 'select' ? (
-              <ListChecks size={20} color={theme.text} />
+              <icons.selectMode size={20} color={theme.text} />
             ) : (
-              <ArrowUpDown size={20} color={theme.primary} />
+              <icons.reorderMode size={20} color={theme.primary} />
             )}
           </TouchableOpacity>
         )}
 
         {onDensityChange && (
           <TouchableOpacity onPress={cycleDensity} style={styles.iconButton} activeOpacity={0.7}>
-            <Scaling size={20} color={theme.text} />
+            <icons.density size={20} color={theme.text} />
           </TouchableOpacity>
         )}
 
@@ -192,7 +183,7 @@ export function TableToolbar<T>({
             style={styles.iconButton}
             activeOpacity={0.7}
           >
-            <Eye size={20} color={theme.text} />
+            <icons.columns size={20} color={theme.text} />
           </TouchableOpacity>
         )}
 
@@ -212,7 +203,7 @@ export function TableToolbar<T>({
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>{translations.columns}</Text>
               <TouchableOpacity onPress={() => setIsMenuOpen(false)}>
-                <X size={24} color={theme.text} />
+                <icons.close size={24} color={theme.text} />
               </TouchableOpacity>
             </View>
             <ScrollView style={styles.modalList}>
@@ -230,7 +221,7 @@ export function TableToolbar<T>({
                           stickyColumns?.includes(col.key as string) && styles.pinActive,
                         ]}
                       >
-                        <Pin
+                        <icons.pin
                           size={18}
                           color={
                             stickyColumns?.includes(col.key as string)

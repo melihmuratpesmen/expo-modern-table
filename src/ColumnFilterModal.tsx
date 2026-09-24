@@ -8,7 +8,7 @@ import {
   Modal,
   ScrollView,
 } from 'react-native';
-import { X, Check } from 'lucide-react-native';
+import { useTableIcons } from './icons';
 import { FilterConfig, FilterValue, TableTranslations } from './types';
 import { TableTheme, themeFallbacks } from './theme/tokens';
 import { parseNumberInput } from './core/edit';
@@ -34,6 +34,7 @@ export function ColumnFilterModal({
   theme,
   translations,
 }: ColumnFilterModalProps) {
+  const icons = useTableIcons();
   const [tempValue, setTempValue] = useState<FilterValue>(currentValue);
   // Range inputs keep the raw text so partial input like "1," or "-" can be typed.
   const initialRange = typeof currentValue === 'object' ? currentValue : {};
@@ -76,7 +77,7 @@ export function ColumnFilterModal({
               <Text style={[styles.optionText, !tempValue && styles.optionTextActive]}>
                 {translations.all}
               </Text>
-              {!tempValue && <Check size={16} color={tableTheme.textInverse} />}
+              {!tempValue && <icons.check size={16} color={tableTheme.textInverse} />}
             </TouchableOpacity>
 
             {filterConfig.options?.map(option => (
@@ -88,7 +89,7 @@ export function ColumnFilterModal({
                 <Text style={[styles.optionText, tempValue === option && styles.optionTextActive]}>
                   {option}
                 </Text>
-                {tempValue === option && <Check size={16} color={tableTheme.textInverse} />}
+                {tempValue === option && <icons.check size={16} color={tableTheme.textInverse} />}
               </TouchableOpacity>
             ))}
           </ScrollView>
@@ -164,7 +165,7 @@ export function ColumnFilterModal({
               {translations.filter} {columnTitle}
             </Text>
             <TouchableOpacity onPress={onClose}>
-              <X size={20} color={tableTheme.textSecondary} />
+              <icons.close size={20} color={tableTheme.textSecondary} />
             </TouchableOpacity>
           </View>
 

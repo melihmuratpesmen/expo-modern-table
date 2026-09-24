@@ -10,14 +10,8 @@ import {
 } from 'react-native';
 import { ScrollView as GHScrollView } from 'react-native-gesture-handler';
 import { FlashList, ListRenderItemInfo } from '@shopify/flash-list';
-import {
-  ChevronUp,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  ListFilter,
-  Hand,
-} from 'lucide-react-native';
+import { defaultIcons, TableIconsProvider } from './icons';
+import { useShallowStable } from './hooks/useShallowStable';
 import { ModernTableProps, RowId, SelectionMode, TableRow, DEFAULT_TRANSLATIONS } from './types';
 import { TableToolbar } from './TableToolbar';
 import { Checkbox } from './Checkbox';
@@ -113,7 +107,10 @@ export function ModernTable<T extends object>({
   showToolbar: showToolbarProp,
   toolbarActions,
   renderBulkActions,
+  icons: iconsProp,
 }: ModernTableProps<T>) {
+  const iconOverrides = useShallowStable(iconsProp);
+  const icons = useMemo(() => ({ ...defaultIcons, ...iconOverrides }), [iconOverrides]);
   // `RowIdAccessor` guarantees `getRowId` when rows have no `id`; widen it for internal use.
   const rowIdOf = (getRowId as ((row: T) => RowId) | undefined) ?? defaultGetRowId;
   const tableTheme = useTableTheme(theme, themeConfig);
@@ -359,7 +356,7 @@ export function ModernTable<T extends object>({
       ]}
     >
       {isReorderMode ? (
-        <Hand size={20} color={tableTheme.textSecondary} />
+        <icons.reorderHeader size={20} color={tableTheme.textSecondary} />
       ) : (
         <Checkbox
           checked={!!isAllSelected}
@@ -404,9 +401,9 @@ export function ModernTable<T extends object>({
           )}
           {isActiveSort &&
             (sortDirection === 'asc' ? (
-              <ChevronUp size={16} color={tableTheme.text} />
+              <icons.sortAsc size={16} color={tableTheme.text} />
             ) : (
-              <ChevronDown size={16} color={tableTheme.text} />
+              <icons.sortDesc size={16} color={tableTheme.text} />
             ))}
         </TouchableOpacity>
 
@@ -417,7 +414,7 @@ export function ModernTable<T extends object>({
             accessibilityRole="button"
             accessibilityLabel={`${t.filter} ${col.title}`}
           >
-            <ListFilter
+            <icons.filter
               size={16}
               color={isFiltered ? tableTheme.primary : tableTheme.textSecondary}
             />
@@ -563,227 +560,231 @@ export function ModernTable<T extends object>({
     : undefined;
 
   return (
-    <View style={[styles.container, containerStyle]}>
-      {showToolbar && (
-        <TableToolbar
-          searchQuery={searchQuery}
-          onSearchChange={onSearchChange}
-          density={density}
-          onDensityChange={onDensityChange}
-          columns={columns}
-          visibleColumns={visibleColumns ?? columns.map(c => c.key as string)}
-          onToggleColumn={onToggleColumn}
-          stickyColumns={stickyColumns}
-          onToggleSticky={onToggleSticky}
-          theme={tableTheme}
-          enableRowReorder={enableRowReorder}
-          selectionMode={selectionMode}
-          onToggleSelectionMode={toggleSelectionMode}
-          selectedCount={selectedIds?.size || 0}
-          translations={t}
-          screenOrientation={screenOrientation}
-          onFullscreenChange={onFullscreenChange}
-          actions={toolbarActions}
-          bulkActions={
-            renderBulkActions && selectedIds && selectedIds.size > 0
-              ? renderBulkActions(selectedIds)
-              : undefined
-          }
-        />
-      )}
+    <TableIconsProvider value={icons}>
+      <View style={[styles.container, containerStyle]}>
+        {showToolbar && (
+          <TableToolbar
+            searchQuery={searchQuery}
+            onSearchChange={onSearchChange}
+            density={density}
+            onDensityChange={onDensityChange}
+            columns={columns}
+            visibleColumns={visibleColumns ?? columns.map(c => c.key as string)}
+            onToggleColumn={onToggleColumn}
+            stickyColumns={stickyColumns}
+            onToggleSticky={onToggleSticky}
+            theme={tableTheme}
+            enableRowReorder={enableRowReorder}
+            selectionMode={selectionMode}
+            onToggleSelectionMode={toggleSelectionMode}
+            selectedCount={selectedIds?.size || 0}
+            translations={t}
+            screenOrientation={screenOrientation}
+            onFullscreenChange={onFullscreenChange}
+            actions={toolbarActions}
+            bulkActions={
+              renderBulkActions && selectedIds && selectedIds.size > 0
+                ? renderBulkActions(selectedIds)
+                : undefined
+            }
+          />
+        )}
 
-      <View style={styles.viewport} onLayout={handleViewportLayout}>
-        <AnimatedGHScrollView
-          horizontal
-          showsHorizontalScrollIndicator={true}
-          bounces={false}
-          scrollEventThrottle={16}
-          contentContainerStyle={{ flexGrow: 1 }}
-          nestedScrollEnabled={true}
-          onScroll={handleScroll}
-        >
-          {/*
+        <View style={styles.viewport} onLayout={handleViewportLayout}>
+          <AnimatedGHScrollView
+            horizontal
+            showsHorizontalScrollIndicator={true}
+            bounces={false}
+            scrollEventThrottle={16}
+            contentContainerStyle={{ flexGrow: 1 }}
+            nestedScrollEnabled={true}
+            onScroll={handleScroll}
+          >
+            {/*
             Fill the table's own width (not the screen's) so there is no phantom scroll.
             Width is explicit only: `flex: 1` would put this view under flex-basis rules on the
             scroll axis. Height comes from the default cross-axis stretch.
           */}
-          <View style={{ width: Math.max(viewportWidth, totalWidth) }}>
-            {/* HEADER */}
-            <View style={[styles.header, headerStyle, { height: currentRowHeight }]}>
-              {showLeadingColumn && renderHeaderLeadingCell()}
-              {columnsWithOffsets.map((col, index) => renderHeaderCell(col, index))}
-            </View>
+            <View style={{ width: Math.max(viewportWidth, totalWidth) }}>
+              {/* HEADER */}
+              <View style={[styles.header, headerStyle, { height: currentRowHeight }]}>
+                {showLeadingColumn && renderHeaderLeadingCell()}
+                {columnsWithOffsets.map((col, index) => renderHeaderCell(col, index))}
+              </View>
 
-            {/* BODY */}
-            <View style={{ flex: 1, minHeight: 2 }}>
-              {error ? (
-                <View style={[styles.statusContainer, viewportStyle]}>
-                  {typeof error === 'string' || typeof error === 'boolean' ? (
-                    <>
-                      <Text style={styles.errorText}>
-                        {typeof error === 'string' ? error : t.error}
-                      </Text>
-                      {onRetry && (
-                        <TouchableOpacity
-                          style={styles.retryButton}
-                          onPress={onRetry}
-                          accessibilityRole="button"
-                        >
-                          <Text style={styles.retryText}>{t.retry}</Text>
-                        </TouchableOpacity>
-                      )}
-                    </>
-                  ) : (
-                    error
-                  )}
-                </View>
-              ) : (
-                <FlashList
-                  key={Platform.OS === 'ios' ? listIdentityKey : undefined}
-                  data={data}
-                  // renderItem's identity already tracks everything rows read; FlashList v1
-                  // additionally needs it as extraData to re-render.
-                  extraData={renderItem}
-                  renderItem={renderItem}
-                  keyExtractor={keyExtractor}
-                  contentContainerStyle={styles.listContent}
-                  // FlashList v1 needs estimatedItemSize; v2 dropped it from its types. A
-                  // ts-expect-error would break type-checking against v1, so ignore instead.
-                  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-                  // @ts-ignore
-                  estimatedItemSize={currentRowHeight}
-                  scrollEnabled={scrollEnabled}
-                  refreshing={!!refreshing}
-                  onRefresh={onRefresh}
-                  onEndReached={onEndReached}
-                  onEndReachedThreshold={onEndReachedThreshold}
-                  ListEmptyComponent={
-                    isLoading ? (
-                      <View style={[styles.statusContainer, viewportStyle]}>
-                        <ActivityIndicator color={tableTheme.primary} />
-                        <Text style={styles.emptyText}>{t.loading}</Text>
-                      </View>
-                    ) : emptyComponent !== undefined ? (
-                      <View style={viewportStyle}>{emptyComponent}</View>
+              {/* BODY */}
+              <View style={{ flex: 1, minHeight: 2 }}>
+                {error ? (
+                  <View style={[styles.statusContainer, viewportStyle]}>
+                    {typeof error === 'string' || typeof error === 'boolean' ? (
+                      <>
+                        <Text style={styles.errorText}>
+                          {typeof error === 'string' ? error : t.error}
+                        </Text>
+                        {onRetry && (
+                          <TouchableOpacity
+                            style={styles.retryButton}
+                            onPress={onRetry}
+                            accessibilityRole="button"
+                          >
+                            <Text style={styles.retryText}>{t.retry}</Text>
+                          </TouchableOpacity>
+                        )}
+                      </>
                     ) : (
-                      <View style={[styles.emptyContainer, viewportStyle]}>
-                        <Text style={styles.emptyText}>{t.empty}</Text>
-                      </View>
-                    )
-                  }
-                  ListFooterComponent={
-                    isLoadingMore ? (
-                      <View
-                        style={[styles.footerLoading, viewportStyle]}
-                        accessibilityRole="progressbar"
-                        accessibilityLabel={t.loading}
+                      error
+                    )}
+                  </View>
+                ) : (
+                  <FlashList
+                    key={Platform.OS === 'ios' ? listIdentityKey : undefined}
+                    data={data}
+                    // renderItem's identity already tracks everything rows read; FlashList v1
+                    // additionally needs it as extraData to re-render.
+                    extraData={renderItem}
+                    renderItem={renderItem}
+                    keyExtractor={keyExtractor}
+                    contentContainerStyle={styles.listContent}
+                    // FlashList v1 needs estimatedItemSize; v2 dropped it from its types. A
+                    // ts-expect-error would break type-checking against v1, so ignore instead.
+                    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+                    // @ts-ignore
+                    estimatedItemSize={currentRowHeight}
+                    scrollEnabled={scrollEnabled}
+                    refreshing={!!refreshing}
+                    onRefresh={onRefresh}
+                    onEndReached={onEndReached}
+                    onEndReachedThreshold={onEndReachedThreshold}
+                    ListEmptyComponent={
+                      isLoading ? (
+                        <View style={[styles.statusContainer, viewportStyle]}>
+                          <ActivityIndicator color={tableTheme.primary} />
+                          <Text style={styles.emptyText}>{t.loading}</Text>
+                        </View>
+                      ) : emptyComponent !== undefined ? (
+                        <View style={viewportStyle}>{emptyComponent}</View>
+                      ) : (
+                        <View style={[styles.emptyContainer, viewportStyle]}>
+                          <Text style={styles.emptyText}>{t.empty}</Text>
+                        </View>
+                      )
+                    }
+                    ListFooterComponent={
+                      isLoadingMore ? (
+                        <View
+                          style={[styles.footerLoading, viewportStyle]}
+                          accessibilityRole="progressbar"
+                          accessibilityLabel={t.loading}
+                        >
+                          <ActivityIndicator color={tableTheme.primary} />
+                        </View>
+                      ) : null
+                    }
+                  />
+                )}
+              </View>
+            </View>
+          </AnimatedGHScrollView>
+
+          {/* Refetch over existing rows: dim the body and block touches, keep the header. */}
+          {isLoading && data.length > 0 && !error && (
+            <View
+              style={[styles.loadingOverlay, { top: currentRowHeight }]}
+              accessibilityRole="progressbar"
+              accessibilityLabel={t.loading}
+            >
+              <View style={styles.loadingOverlayBackdrop} />
+              <ActivityIndicator color={tableTheme.primary} />
+            </View>
+          )}
+        </View>
+
+        {pagination && (
+          <View style={styles.paginationContainer}>
+            <View style={styles.paginationLeft}>
+              {pagination.itemsPerPageOptions && pagination.onItemsPerPageChange && (
+                <View style={styles.perPageContainer}>
+                  <Text style={styles.perPageLabel}>{t.show}</Text>
+                  <View style={styles.perPageButtons}>
+                    {pagination.itemsPerPageOptions.map(option => (
+                      <TouchableOpacity
+                        key={option}
+                        style={[
+                          styles.perPageButton,
+                          pagination.itemsPerPage === option && styles.perPageButtonActive,
+                        ]}
+                        onPress={() => pagination.onItemsPerPageChange?.(option)}
                       >
-                        <ActivityIndicator color={tableTheme.primary} />
-                      </View>
-                    ) : null
-                  }
-                />
+                        <Text
+                          style={[
+                            styles.perPageButtonText,
+                            pagination.itemsPerPage === option && styles.perPageButtonTextActive,
+                          ]}
+                        >
+                          {option}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
               )}
             </View>
-          </View>
-        </AnimatedGHScrollView>
 
-        {/* Refetch over existing rows: dim the body and block touches, keep the header. */}
-        {isLoading && data.length > 0 && !error && (
-          <View
-            style={[styles.loadingOverlay, { top: currentRowHeight }]}
-            accessibilityRole="progressbar"
-            accessibilityLabel={t.loading}
-          >
-            <View style={styles.loadingOverlayBackdrop} />
-            <ActivityIndicator color={tableTheme.primary} />
-          </View>
-        )}
-      </View>
-
-      {pagination && (
-        <View style={styles.paginationContainer}>
-          <View style={styles.paginationLeft}>
-            {pagination.itemsPerPageOptions && pagination.onItemsPerPageChange && (
-              <View style={styles.perPageContainer}>
-                <Text style={styles.perPageLabel}>{t.show}</Text>
-                <View style={styles.perPageButtons}>
-                  {pagination.itemsPerPageOptions.map(option => (
-                    <TouchableOpacity
-                      key={option}
-                      style={[
-                        styles.perPageButton,
-                        pagination.itemsPerPage === option && styles.perPageButtonActive,
-                      ]}
-                      onPress={() => pagination.onItemsPerPageChange?.(option)}
-                    >
-                      <Text
-                        style={[
-                          styles.perPageButtonText,
-                          pagination.itemsPerPage === option && styles.perPageButtonTextActive,
-                        ]}
-                      >
-                        {option}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
+            <View style={styles.paginationRight}>
+              <Text style={styles.pageInfo}>
+                {t.page} {pagination.currentPage} / {pagination.totalPages}
+              </Text>
+              <View style={styles.paginationButtons}>
+                <TouchableOpacity
+                  disabled={pagination.currentPage === 1}
+                  onPress={() => pagination.onPageChange(pagination.currentPage - 1)}
+                  style={[styles.pageButton, pagination.currentPage === 1 && styles.disabledButton]}
+                >
+                  <icons.previousPage
+                    size={20}
+                    color={
+                      pagination.currentPage === 1 ? tableTheme.textSecondary : tableTheme.text
+                    }
+                  />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  disabled={pagination.currentPage === pagination.totalPages}
+                  onPress={() => pagination.onPageChange(pagination.currentPage + 1)}
+                  style={[
+                    styles.pageButton,
+                    pagination.currentPage === pagination.totalPages && styles.disabledButton,
+                  ]}
+                >
+                  <icons.nextPage
+                    size={20}
+                    color={
+                      pagination.currentPage === pagination.totalPages
+                        ? tableTheme.textSecondary
+                        : tableTheme.text
+                    }
+                  />
+                </TouchableOpacity>
               </View>
-            )}
-          </View>
-
-          <View style={styles.paginationRight}>
-            <Text style={styles.pageInfo}>
-              {t.page} {pagination.currentPage} / {pagination.totalPages}
-            </Text>
-            <View style={styles.paginationButtons}>
-              <TouchableOpacity
-                disabled={pagination.currentPage === 1}
-                onPress={() => pagination.onPageChange(pagination.currentPage - 1)}
-                style={[styles.pageButton, pagination.currentPage === 1 && styles.disabledButton]}
-              >
-                <ChevronLeft
-                  size={20}
-                  color={pagination.currentPage === 1 ? tableTheme.textSecondary : tableTheme.text}
-                />
-              </TouchableOpacity>
-              <TouchableOpacity
-                disabled={pagination.currentPage === pagination.totalPages}
-                onPress={() => pagination.onPageChange(pagination.currentPage + 1)}
-                style={[
-                  styles.pageButton,
-                  pagination.currentPage === pagination.totalPages && styles.disabledButton,
-                ]}
-              >
-                <ChevronRight
-                  size={20}
-                  color={
-                    pagination.currentPage === pagination.totalPages
-                      ? tableTheme.textSecondary
-                      : tableTheme.text
-                  }
-                />
-              </TouchableOpacity>
             </View>
           </View>
-        </View>
-      )}
+        )}
 
-      {activeFilterDef?.filterConfig && (
-        <ColumnFilterModal
-          key={activeFilterColumn}
-          onClose={() => setActiveFilterColumn(null)}
-          columnTitle={activeFilterDef.title}
-          filterConfig={activeFilterDef.filterConfig}
-          currentValue={filters?.[activeFilterDef.key as string]}
-          onApply={value => {
-            onFilterChange?.(activeFilterDef.key as string, value);
-            setActiveFilterColumn(null);
-          }}
-          theme={tableTheme}
-          translations={t}
-        />
-      )}
-    </View>
+        {activeFilterDef?.filterConfig && (
+          <ColumnFilterModal
+            key={activeFilterColumn}
+            onClose={() => setActiveFilterColumn(null)}
+            columnTitle={activeFilterDef.title}
+            filterConfig={activeFilterDef.filterConfig}
+            currentValue={filters?.[activeFilterDef.key as string]}
+            onApply={value => {
+              onFilterChange?.(activeFilterDef.key as string, value);
+              setActiveFilterColumn(null);
+            }}
+            theme={tableTheme}
+            translations={t}
+          />
+        )}
+      </View>
+    </TableIconsProvider>
   );
 }

@@ -3,6 +3,8 @@ export { useTable } from './hooks/useTable';
 export type { UseTableResult, UseTableOptions, TableState, TableProps } from './hooks/useTable';
 export { useTableTheme } from './hooks/useTableTheme';
 export type { ScreenOrientationModule } from './hooks/useFullscreenOrientation';
+export { defaultIcons } from './icons';
+export type { TableIcons, TableIcon } from './icons';
 
 export { lightTheme, darkTheme, defaultFontFamily } from './theme/tokens';
 export type { TableTheme, TableFontFamily } from './theme/tokens';

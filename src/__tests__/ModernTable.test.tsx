@@ -510,3 +510,28 @@ describe('ModernTable toolbar slots', () => {
     expect(header.props.accessibilityState).toMatchObject({ checked: 'mixed' });
   });
 });
+
+describe('ModernTable icons', () => {
+  it('renders overridden icons', () => {
+    render(
+      <ModernTable
+        data={rows}
+        columns={[{ key: 'score', title: 'Score', filterConfig: { type: 'number-range' } }]}
+        icons={{ filter: () => <Text>FILTER-ICON</Text> }}
+      />
+    );
+    expect(screen.getByText('FILTER-ICON')).toBeTruthy();
+  });
+
+  it('does not re-render rows for an equal inline icons object', () => {
+    const FilterIcon = () => <Text>F</Text>;
+    const renderName = jest.fn((item: Row) => <Text>{item.name}</Text>);
+    const columns: Column<Row>[] = [{ key: 'name', title: 'Name', renderCell: renderName }];
+    const view = render(
+      <ModernTable data={rows} columns={columns} icons={{ filter: FilterIcon }} />
+    );
+    renderName.mockClear();
+    view.rerender(<ModernTable data={rows} columns={columns} icons={{ filter: FilterIcon }} />);
+    expect(renderName).not.toHaveBeenCalled();
+  });
+});

@@ -9,7 +9,7 @@ import {
   ViewStyle,
 } from 'react-native';
 import { GestureDetector, GestureType } from 'react-native-gesture-handler';
-import { AlignJustify } from 'lucide-react-native';
+import { useTableIcons } from './icons';
 import { RowId } from './types';
 import { TableTheme } from './theme/tokens';
 import { TableStyles } from './tableStyles';
@@ -210,9 +210,10 @@ function TableBodyRowImpl<T extends object>({
 }
 
 function DragHandle({ gesture, color }: { gesture?: GestureType; color: string }) {
+  const icons = useTableIcons();
   const handle = (
     <View style={{ opacity: 0.5 }}>
-      <AlignJustify size={20} color={color} />
+      <icons.dragHandle size={20} color={color} />
     </View>
   );
   return gesture ? <GestureDetector gesture={gesture}>{handle}</GestureDetector> : handle;

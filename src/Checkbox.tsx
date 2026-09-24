@@ -1,6 +1,6 @@
 import React from 'react';
 import { TouchableOpacity, StyleSheet } from 'react-native';
-import { Check, Minus } from 'lucide-react-native';
+import { useTableIcons } from './icons';
 
 interface CheckboxProps {
   checked: boolean;
@@ -22,6 +22,7 @@ export function Checkbox({
   checkColor = '#fff',
   accessibilityLabel,
 }: CheckboxProps) {
+  const icons = useTableIcons();
   return (
     <TouchableOpacity
       activeOpacity={0.7}
@@ -38,9 +39,9 @@ export function Checkbox({
       ]}
     >
       {indeterminate ? (
-        <Minus size={14} color={checkColor} strokeWidth={3} />
+        <icons.indeterminate size={14} color={checkColor} strokeWidth={3} />
       ) : checked ? (
-        <Check size={14} color={checkColor} strokeWidth={3} />
+        <icons.check size={14} color={checkColor} strokeWidth={3} />
       ) : null}
     </TouchableOpacity>
   );

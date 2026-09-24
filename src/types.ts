@@ -2,6 +2,7 @@ import { ReactNode } from 'react';
 import { StyleProp, ViewStyle } from 'react-native';
 import { TableTheme } from './theme/tokens';
 import type { ScreenOrientationModule } from './hooks/useFullscreenOrientation';
+import type { TableIcons } from './icons';
 
 export type RowId = string | number;
 export type TableRow = { id: RowId };
@@ -182,6 +183,8 @@ export interface ModernTableBaseProps<T extends object> {
   getRowStyle?: (item: T, index: number) => StyleProp<ViewStyle>;
 
   // Theme & I18n
+  /** Replace built-in (lucide) icons, e.g. `{ search: MySearchIcon }`. */
+  icons?: Partial<TableIcons>;
   theme?: TableTheme | 'light' | 'dark';
   themeConfig?: Partial<TableTheme>;
   translations?: Partial<TableTranslations>;
