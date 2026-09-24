@@ -268,3 +268,13 @@ describe('useTable getCsv', () => {
     expect(result.current.getCsv({ rows: 'selected', includeHeader: false })).toBe('Row 4,3');
   });
 });
+
+describe('useTable footerData', () => {
+  it('passes every filtered row, not only the page', () => {
+    const { result } = renderHook(() => useTable(makeRows(25), columns, 10));
+    act(() => result.current.setColumnFilter('score', { min: 5 }));
+    const props = result.current.getTableProps();
+    expect(props.data).toHaveLength(10);
+    expect(props.footerData).toHaveLength(20);
+  });
+});

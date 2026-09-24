@@ -590,3 +590,37 @@ describe('ModernTable accessibility', () => {
     expect(screen.getByText('Kayıt bulunamadı.')).toBeTruthy();
   });
 });
+
+describe('ModernTable footer', () => {
+  it('renders built-in aggregations and custom footers', () => {
+    render(
+      <ModernTable
+        data={rows}
+        columns={[
+          { key: 'name', title: 'Name', footer: () => 'Total' },
+          { key: 'score', title: 'Score', footer: 'sum' },
+          { key: 'note', title: 'Note', footer: 'count' },
+        ]}
+      />
+    );
+    expect(screen.getByText('Total')).toBeTruthy();
+    expect(screen.getByText('20.15')).toBeTruthy();
+    expect(screen.getByText('3')).toBeTruthy();
+  });
+
+  it('aggregates footerData instead of the visible page', () => {
+    render(
+      <ModernTable
+        data={rows.slice(0, 1)}
+        footerData={rows}
+        columns={[{ key: 'score', title: 'Score', footer: 'max' }]}
+      />
+    );
+    expect(screen.getByText('8')).toBeTruthy();
+  });
+
+  it('has no footer row when no column defines one', () => {
+    render(<ModernTable data={rows} columns={[{ key: 'name', title: 'Name' }]} />);
+    expect(screen.queryByText('Total')).toBeNull();
+  });
+});

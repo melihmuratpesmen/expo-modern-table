@@ -154,6 +154,11 @@ export interface Column<T> {
   /** Custom header content in place of the title (sort / filter icons stay). */
   renderHeader?: (column: Column<T>) => ReactNode;
   renderCell?: (item: T, index: number) => ReactNode;
+  /**
+   * Summary row cell: a built-in aggregation over the footer rows, or a function returning
+   * the content (e.g. `() => 'Total'` for a label column).
+   */
+  footer?: 'sum' | 'avg' | 'min' | 'max' | 'count' | ((rows: T[]) => ReactNode);
   /** Tap-to-edit text cell. Needs `onRowChange`; numeric values are written back as numbers. */
   editable?: boolean;
   hidden?: boolean;
@@ -205,6 +210,12 @@ export interface ModernTableBaseProps<T extends object> {
 
   // Pagination
   pagination?: PaginationProps;
+
+  /**
+   * Rows the summary row (`Column.footer`) aggregates. Defaults to `data`; `useTable` passes
+   * every row matching the filters, not only the current page.
+   */
+  footerData?: T[];
 
   // Density
   density?: Density;

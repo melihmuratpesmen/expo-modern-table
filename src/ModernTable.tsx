@@ -39,6 +39,7 @@ import { isEmptyFilterValue } from './core/filter';
 import { moveKey, reconcileOrder, resolveColumnWidths } from './core/columns';
 import { getDropIndex } from './core/reorder';
 import { INVALID_EDIT, parseEditedValue } from './core/edit';
+import { aggregate } from './core/aggregate';
 
 const AnimatedGHScrollView = Animated.createAnimatedComponent(GHScrollView);
 
@@ -108,6 +109,7 @@ export function ModernTable<T extends object>({
   toolbarActions,
   renderBulkActions,
   icons: iconsProp,
+  footerData,
 }: ModernTableProps<T>) {
   const iconOverrides = useShallowStable(iconsProp);
   const icons = useMemo(() => ({ ...defaultIcons, ...iconOverrides }), [iconOverrides]);
@@ -346,6 +348,68 @@ export function ModernTable<T extends object>({
   }, [columnsWithOffsets, scrollX, tableTheme.border]);
 
   // --- RENDERERS ---
+
+  // --- FOOTER (summary row) ---
+  const footerRows = footerData ?? data;
+  const footerContent = useMemo(() => {
+    const content = new Map<string, React.ReactNode>();
+    const numberFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 });
+    for (const col of columnsWithOffsets) {
+      if (col.footer === undefined) continue;
+      if (typeof col.footer === 'function') {
+        content.set(col.key as string, col.footer(footerRows));
+      } else {
+        const value = aggregate(footerRows, col, col.footer);
+        content.set(col.key as string, value === undefined ? '' : numberFormat.format(value));
+      }
+    }
+    return content;
+  }, [columnsWithOffsets, footerRows]);
+
+  const renderFooter = () => (
+    <View style={[styles.footer, { height: currentRowHeight }]}>
+      {showLeadingColumn && (
+        <Animated.View
+          style={[
+            styles.stickyCheckbox,
+            { height: currentRowHeight, backgroundColor: tableTheme.headerBackground },
+            leadingTransform,
+          ]}
+        />
+      )}
+      {columnsWithOffsets.map(col => {
+        const key = col.key as string;
+        const content = footerContent.get(key);
+        const sticky = stickyStyles.get(key);
+        return (
+          <Animated.View
+            key={key}
+            style={[
+              styles.cellBase,
+              {
+                width: col.layoutWidth,
+                height: currentRowHeight,
+                justifyContent: getAlign(col.align),
+              },
+              sticky,
+              sticky && { backgroundColor: tableTheme.headerBackground },
+            ]}
+          >
+            {typeof content === 'string' || typeof content === 'number' ? (
+              <Text
+                style={[styles.footerText, { textAlign: col.align || 'left' }]}
+                numberOfLines={1}
+              >
+                {content}
+              </Text>
+            ) : (
+              content
+            )}
+          </Animated.View>
+        );
+      })}
+    </View>
+  );
 
   const renderHeaderLeadingCell = () => (
     <Animated.View
@@ -697,6 +761,9 @@ export function ModernTable<T extends object>({
                   />
                 )}
               </View>
+
+              {/* FOOTER */}
+              {footerContent.size > 0 && !error && renderFooter()}
             </View>
           </AnimatedGHScrollView>
 

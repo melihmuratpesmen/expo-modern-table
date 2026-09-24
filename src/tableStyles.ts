@@ -74,6 +74,18 @@ export function createTableStyles(theme: TableTheme) {
       textTransform: 'uppercase', // Modern touch
       letterSpacing: 0.5,
     },
+    footer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      borderTopWidth: 1,
+      borderTopColor: theme.border,
+      backgroundColor: theme.headerBackground,
+    },
+    footerText: {
+      fontSize: 14,
+      color: theme.text,
+      fontFamily: theme.fontFamily.bold,
+    },
     row: {
       flexDirection: 'row',
       alignItems: 'center',

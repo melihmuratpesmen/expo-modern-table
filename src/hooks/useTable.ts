@@ -120,7 +120,8 @@ type TablePropKeys =
   | 'columnOrder'
   | 'onColumnReorder'
   | 'columnWidths'
-  | 'onColumnResize';
+  | 'onColumnResize'
+  | 'footerData';
 
 /** What `getTableProps()` returns — spread it onto `ModernTable`. */
 export type TableProps<T extends object> = Pick<ModernTableBaseProps<T>, TablePropKeys> &
@@ -436,6 +437,7 @@ function useTableImpl<T extends object>(
         onToggleAll: toggleAllSelection,
         isAllSelected,
         isSomeSelected,
+        footerData: sortedData,
         columnOrder,
         onColumnReorder: setColumnOrder,
         columnWidths,
@@ -472,6 +474,7 @@ function useTableImpl<T extends object>(
       isAllSelected,
       isSomeSelected,
       showPagination,
+      sortedData,
       columnOrder,
       columnWidths,
       setColumnWidth,
