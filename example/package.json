@@ -32,7 +32,8 @@
     "ios": "expo start --ios --go",
     "web": "expo start --web",
     "tunnel": "expo start --go --tunnel",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "export:web": "EXPO_UNSTABLE_TREE_SHAKING=1 EXPO_UNSTABLE_METRO_OPTIMIZE_GRAPH=1 expo export --platform web --output-dir dist"
   },
   "private": true
 }
