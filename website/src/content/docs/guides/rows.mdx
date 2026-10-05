@@ -1,0 +1,110 @@
+---
+title: Rows
+description: Row press, expandable detail rows, drag to reorder, grouping and per-row styles.
+sidebar:
+  order: 7
+---
+
+## Pressing a row
+
+```tsx
+<ModernTable
+  columns={columns}
+  {...table.getTableProps()}
+  onRowPress={order => router.push(`/orders/${order.id}`)}
+/>
+```
+
+Checkboxes, expand buttons and editable cells keep their own taps.
+
+## Expandable rows
+
+`renderExpandedRow` adds an expand button to every row and renders your content under the row
+when it's open. The detail area spans the visible width and stays put while the columns scroll.
+
+```tsx
+<ModernTable
+  columns={columns}
+  {...table.getTableProps()}
+  renderExpandedRow={order => <OrderLineItems order={order} />}
+/>
+```
+
+Open rows are tracked internally. To control them — e.g. open one from code, or allow only one
+at a time — pass `expandedIds` and `onToggleExpand`:
+
+```tsx
+const [expanded, setExpanded] = useState<Set<RowId>>(new Set());
+
+<ModernTable
+  /* … */
+  expandedIds={expanded}
+  onToggleExpand={id => setExpanded(prev => (prev.has(id) ? new Set() : new Set([id])))}
+/>;
+```
+
+## Drag to reorder
+
+```tsx
+function moveItem<T>(list: T[], from: number, to: number): T[] {
+  const next = [...list];
+  const [item] = next.splice(from, 1);
+  next.splice(to, 0, item);
+  return next;
+}
+
+<ModernTable
+  columns={columns}
+  {...table.getTableProps()}
+  enableRowReorder
+  onRowReorder={(fromIndex, toIndex) => setRows(rows => moveItem(rows, fromIndex, toIndex))}
+/>;
+```
+
+`enableRowReorder` adds a toolbar button that switches between selection and reorder mode. In
+reorder mode each row has a drag handle. Dragging is disabled while a sort is active, since the
+order on screen then comes from the sort.
+
+The indices refer to the rows currently rendered (the page). With pagination, map them to your
+full list by id:
+
+```tsx
+onRowReorder={(from, to) => {
+  const page = table.paginatedData;
+  const fromId = page[from].id;
+  const toId = page[to].id;
+  setRows(rows => {
+    const fromIndex = rows.findIndex(r => r.id === fromId);
+    const toIndex = rows.findIndex(r => r.id === toId);
+    return moveItem(rows, fromIndex, toIndex);
+  });
+}}
+```
+
+The mode can also be controlled with `selectionMode` / `onSelectionModeChange`.
+
+## Grouping
+
+`rowGroupKey` visually groups consecutive rows with the same value: each group gets rounded
+corners and a small gap before it. Sort or order your data by that field.
+
+```tsx
+<ModernTable columns={columns} {...table.getTableProps()} rowGroupKey="department" />
+```
+
+## Row styles
+
+```tsx
+<ModernTable
+  /* … */
+  rowStyle={{ borderBottomWidth: 0 }}
+  getRowStyle={row => row.overdue && { backgroundColor: '#FEF2F2' }}
+/>
+```
+
+`getRowStyle` should be a stable function (define it outside the component or memoize it).
+
+## Density
+
+Users switch between **compact** (36 pt), **standard** (48 pt) and **comfortable** (64 pt) rows
+from the toolbar. Set the starting value with `useTable(data, columns, { initialDensity })`.

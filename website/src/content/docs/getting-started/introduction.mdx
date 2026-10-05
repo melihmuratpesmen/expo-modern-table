@@ -1,0 +1,81 @@
+---
+title: Introduction
+description: What expo-modern-table is, what it does, and when it is (and isn't) the right tool.
+sidebar:
+  order: 1
+---
+
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+**expo-modern-table** is a data table component for Expo and React Native. It is a finished,
+themeable UI — not a headless toolkit — built on
+[FlashList](https://shopify.github.io/flash-list/), Reanimated and Gesture Handler, and it runs
+on iOS, Android and the web.
+
+You give it rows and column definitions; a `useTable` hook handles search, sorting, filters,
+pagination and selection on the device, or just the state when your API does the work.
+
+```tsx
+const table = useTable(orders, columns, 20);
+
+return <ModernTable columns={columns} {...table.getTableProps()} />;
+```
+
+<LinkCard
+  title="Open the live demo"
+  description="Orders over a mock API, a team directory and a live-updating market table — the same code that runs in Expo Go."
+  href={`${import.meta.env.BASE_URL}demo/`}
+/>
+
+## What you get
+
+<CardGrid>
+  <Card title="Layout" icon="list-format">
+    Horizontal scrolling with sticky (pinned) columns, `flex` / min / max widths, drag to resize
+    and reorder columns, show / hide columns, three row densities.
+  </Card>
+  <Card title="Data" icon="magnifier">
+    Locale-aware sorting, global search that folds accents and Turkish letters, text / select /
+    boolean / range filters, computed columns, client-side or server-side pagination.
+  </Card>
+  <Card title="Rows" icon="approve-check">
+    Selection with select-all and a bulk-action bar, inline cell editing, drag-to-reorder,
+    expandable detail rows, grouping and a summary (footer) row.
+  </Card>
+  <Card title="States" icon="information">
+    Loading, refetching, error-with-retry and empty states, pull to refresh and infinite scroll.
+  </Card>
+  <Card title="Design" icon="setting">
+    Light and dark themes, token overrides, custom fonts, replaceable icons and a complete
+    translations map (English and Turkish included).
+  </Card>
+  <Card title="Production details" icon="rocket">
+    Memoized rows, shared sticky animations, an indexed search, accessibility labels and roles,
+    CSV export, and preferences you can persist.
+  </Card>
+</CardGrid>
+
+## When to use it
+
+- You show **real data** on mobile: orders, reports, inventories, leaderboards, transactions,
+  admin panels — anything with more than a handful of columns or rows.
+- You want a **polished default** that already handles sticky columns, gestures, empty states
+  and theming, instead of assembling it from primitives.
+- You need the **same table on phones, tablets and the web** (react-native-web).
+
+## When something else fits better
+
+- **A small, static table** in an app that already uses React Native Paper —
+  [Paper's `DataTable`](https://oss.callstack.com/react-native-paper/docs/components/DataTable/DataTable)
+  has no extra dependencies.
+- **A completely custom design**, or table logic shared with a React web app — the headless
+  [TanStack Table](https://tanstack.com/table) gives you state and logic and leaves rendering
+  (and virtualization, gestures) to you.
+
+See the [comparison](/expo-modern-table/comparison/) for a feature-by-feature look.
+
+## Stability
+
+The package is `0.x`: the API is settling and breaking changes are possible before `1.0`, but
+they are called out in the [changelog](https://github.com/melihmuratpesmen/expo-modern-table/blob/main/CHANGELOG.md).
+It is used in production at [MyExamy](https://myexamy.com).

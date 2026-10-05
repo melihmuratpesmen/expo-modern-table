@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "expo-modern-table-example",
+    "name": "Modern Table",
     "slug": "expo-modern-table-example",
     "version": "1.0.0",
     "orientation": "default",
@@ -11,7 +11,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#6366F1",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -19,7 +19,15 @@
       "predictiveBackGestureEnabled": false
     },
     "web": {
-      "favicon": "./assets/favicon.png"
-    }
+      "name": "expo-modern-table — live demo",
+      "shortName": "Modern Table",
+      "description": "Live demo of expo-modern-table: sticky columns, sorting, filters, server-side data, bulk actions and more for Expo & React Native.",
+      "themeColor": "#4F46E5",
+      "favicon": "./assets/favicon.png",
+      "output": "single"
+    },
+    "plugins": [
+      "expo-status-bar"
+    ]
   }
 }

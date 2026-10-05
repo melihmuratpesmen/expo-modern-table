@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- The pagination bar wraps the page controls onto a second line instead of overlapping the
+  page-size picker on narrow (~320 pt) screens.
+
+### Docs & example
+
+- Documentation website with guides, recipes (TanStack Query, Supabase, AsyncStorage / MMKV,
+  CSV sharing, custom cells), API reference and a comparison page:
+  https://melihmuratpesmen.github.io/expo-modern-table/
+- The example app is now an international showcase (orders over a mock API, team directory,
+  live markets) with an EN / TR toggle, on Expo SDK 57 — and doubles as the live web demo.
+- New README with real recordings, logo and brand assets; npm keywords and homepage updated.
+
 ## 0.5.0
 
 First release after 0.1.2. The 0.2.0–0.4.0 entries below were developed in the same branch and

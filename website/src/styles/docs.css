@@ -1,0 +1,67 @@
+/* Brand: indigo → violet, Inter + JetBrains Mono */
+:root {
+  --sl-font: 'Inter Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --sl-font-mono: 'JetBrains Mono Variable', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --sl-color-accent-low: #1e1b4b;
+  --sl-color-accent: #6366f1;
+  --sl-color-accent-high: #c7d2fe;
+
+  --sl-color-white: #ffffff;
+  --sl-color-gray-1: #eef0f7;
+  --sl-color-gray-2: #c5cad8;
+  --sl-color-gray-3: #8f97ad;
+  --sl-color-gray-4: #5b6378;
+  --sl-color-gray-5: #3a4152;
+  --sl-color-gray-6: #1c2232;
+  --sl-color-black: #0b1020;
+}
+
+:root[data-theme='light'] {
+  --sl-color-accent-low: #e0e7ff;
+  --sl-color-accent: #4f46e5;
+  --sl-color-accent-high: #312e81;
+
+  --sl-color-white: #0b1020;
+  --sl-color-gray-1: #1c2232;
+  --sl-color-gray-2: #3a4152;
+  --sl-color-gray-3: #5b6378;
+  --sl-color-gray-4: #8f97ad;
+  --sl-color-gray-5: #c5cad8;
+  --sl-color-gray-6: #eef0f7;
+  --sl-color-gray-7: #f6f7fb;
+  --sl-color-black: #ffffff;
+}
+
+.site-title {
+  font-size: var(--sl-text-xl);
+  font-weight: 750;
+  letter-spacing: -0.02em;
+  color: var(--sl-color-white);
+}
+
+.sl-markdown-content h1,
+.sl-markdown-content h2,
+.sl-markdown-content h3,
+h1#_top {
+  letter-spacing: -0.02em;
+}
+
+/* Wide, readable tables in reference pages */
+.sl-markdown-content table {
+  display: table;
+  width: 100%;
+  font-size: var(--sl-text-sm);
+}
+.sl-markdown-content table code {
+  white-space: nowrap;
+}
+
+/* Demo embeds inside docs pages */
+.demo-frame {
+  width: 100%;
+  height: 640px;
+  border: 1px solid var(--sl-color-gray-5);
+  border-radius: 1rem;
+  background: var(--sl-color-black);
+}

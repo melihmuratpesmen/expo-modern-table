@@ -1,0 +1,121 @@
+---
+title: Columns
+description: Widths, pinning, visibility, resizing, reordering, computed values and custom headers and cells.
+sidebar:
+  order: 2
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Columns are plain objects. `key` points at a field of the row (or any unique string when you use
+`getValue` / `renderCell`), `title` is the header text.
+
+```tsx
+const columns: Column<Employee>[] = [
+  { key: 'name', title: 'Name', width: 200, isSticky: true },
+  { key: 'department', title: 'Department', width: 140 },
+  { key: 'salary', title: 'Salary', width: 120, align: 'right' },
+];
+```
+
+## Widths
+
+| Property | Description |
+| --- | --- |
+| `width` | Fixed width, or the starting width of a `flex` column. Default `100`. |
+| `flex` | Share of the leftover horizontal space, like `flex-grow`. |
+| `minWidth` / `maxWidth` | Bounds for `flex` columns and for resizing. |
+
+When the columns are narrower than the screen, `flex` columns grow to fill it; when they are
+wider, the table scrolls horizontally.
+
+```tsx
+{ key: 'description', title: 'Description', width: 200, flex: 1, minWidth: 160 }
+```
+
+## Sticky (pinned) columns
+
+`isSticky: true` pins a column to the left while the others scroll. Users can pin and unpin
+columns from the column menu in the toolbar; `useTable` tracks it in `stickyColumns`. The
+checkbox column is always pinned.
+
+## Showing and hiding
+
+`hidden: true` hides a column by default; users can show it from the column menu. `useTable`
+keeps the choice in `visibleColumns` (and in [preferences](/expo-modern-table/guides/persistence/)).
+
+## Resizing and reordering
+
+```tsx
+<ModernTable columns={columns} {...table.getTableProps()} enableColumnResize enableColumnReorder />
+```
+
+- **Resize** — drag the right edge of a header. `minWidth` / `maxWidth` bound it, and
+  `resizable: false` opts a column out. Screen readers can resize in 10 pt steps.
+- **Reorder** — long-press a header, then drag it. Hidden columns keep their place in the
+  order, so showing one later puts it back where it was.
+
+Both are controlled by `useTable` (`columnWidths`, `columnOrder`). Without the hook, pass
+`columnWidths` / `onColumnResize` and `columnOrder` / `onColumnReorder`, or let the table keep
+them internally.
+
+## Computed and nested values
+
+`getValue` is what sorting, filters, search, CSV export and the default cell text use:
+
+```tsx
+{ key: 'fullName', title: 'Name', getValue: row => `${row.first} ${row.last}` },
+{ key: 'city', title: 'City', getValue: row => row.address.city },
+{ key: 'margin', title: 'Margin', getValue: row => (row.price - row.cost) / row.price },
+```
+
+<Aside type="tip">
+  For filters with translated labels, return the label from `getValue` and use the same labels
+  as `filterConfig.options` — the filter matches what the user sees.
+</Aside>
+
+## Custom cells
+
+`renderCell(item, index)` returns any element. The cell keeps its width, alignment and row
+height; your content is centered vertically.
+
+```tsx
+{
+  key: 'customer',
+  title: 'Customer',
+  width: 220,
+  renderCell: order => (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+      <Avatar name={order.customer} />
+      <Text numberOfLines={1}>{order.customer}</Text>
+    </View>
+  ),
+}
+```
+
+Rows are recycled by FlashList. If a custom cell keeps local state or runs an animation, give
+it `key={item.id}` so it resets when a row is reused for another item.
+
+## Custom headers
+
+`renderHeader(column)` replaces the title; the sort and filter icons stay.
+
+```tsx
+{ key: 'rating', title: 'Rating', renderHeader: () => <Star size={14} /> }
+```
+
+## Other options
+
+| Property | Description |
+| --- | --- |
+| `align` | `'left'`, `'center'` or `'right'` for the header and cells. |
+| `sortable` | `false` disables sorting this column. |
+| `sortFn` | Ascending comparator; replaces the built-in comparison. |
+| `searchable` | `false` leaves the column out of the global search. |
+| `filterConfig` | Adds a filter — see [Search, sort & filter](/expo-modern-table/guides/search-sort-filter/). |
+| `editable` | Tap to edit — see [Inline editing](/expo-modern-table/guides/editing/). |
+| `footer` | Summary cell — see [Summary row](/expo-modern-table/guides/summary-row/). |
+| `isMarked`, `markedColor` | Highlight a column's background. |
+| `style`, `headerStyle` | Extra styles for the column's cells and header. |
+
+The full list is in the [Column reference](/expo-modern-table/reference/column/).

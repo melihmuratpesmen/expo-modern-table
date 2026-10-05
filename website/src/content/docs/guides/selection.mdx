@@ -1,0 +1,55 @@
+---
+title: Selection & bulk actions
+description: Row checkboxes, select-all, and a contextual toolbar for actions on the selected rows.
+sidebar:
+  order: 5
+---
+
+`useTable` shows a checkbox column by default. Tap a row's checkbox to select it; the header
+checkbox selects or clears the whole select-all scope and shows a dash while only some of it is
+selected.
+
+```tsx
+const table = useTable(data, columns, {
+  selectAllScope: 'filtered', // every row matching search + filters; default 'page'
+});
+
+table.selectedIds; // Set<RowId>
+table.clearSelection();
+```
+
+Turn checkboxes off with `enableSelection: false`.
+
+## Bulk actions
+
+`renderBulkActions` receives the selected ids. While at least one row is selected, the toolbar
+turns into a contextual bar with the selection count and your buttons:
+
+```tsx
+<ModernTable
+  columns={columns}
+  {...table.getTableProps()}
+  renderBulkActions={ids => (
+    <View style={{ flexDirection: 'row', gap: 8 }}>
+      <Button title="Archive" onPress={() => archive([...ids]).then(table.clearSelection)} />
+      <Button title="Export" onPress={() => exportRows(ids)} />
+    </View>
+  )}
+/>
+```
+
+Selection survives sorting, filtering and page changes, so users can collect rows across pages
+(in client-side mode). Call `table.clearSelection()` after an action that removes rows.
+
+## Extra toolbar buttons
+
+`toolbarActions` adds buttons to the end of the regular toolbar, whatever the selection:
+
+```tsx
+<ModernTable columns={columns} {...table.getTableProps()} toolbarActions={<AddButton />} />
+```
+
+`showToolbar={false}` hides the toolbar entirely. Otherwise it appears whenever one of its
+controls has a handler: search (`onSearchChange`), density (`onDensityChange`), the column menu
+(`onToggleColumn`), reorder mode (`enableRowReorder`), fullscreen (`screenOrientation`), custom
+actions or bulk actions.

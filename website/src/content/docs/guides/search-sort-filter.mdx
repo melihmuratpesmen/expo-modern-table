@@ -1,0 +1,79 @@
+---
+title: Search, sort & filter
+description: Global search, locale-aware sorting, custom comparators and column filters.
+sidebar:
+  order: 3
+---
+
+All three run on the device with `useTable`, or on your server in
+[manual mode](/expo-modern-table/guides/server-side/).
+
+## Global search
+
+The toolbar search field matches every column whose `searchable` isn't `false`, using each
+column's `getValue` (or the raw field). Matching ignores case and accents — `cafe` finds
+`Café` — and folds Turkish letters, so `istanbul` finds `İstanbul` and `isik` finds `Işık`.
+
+An index of the searchable text is built once per data change, so typing stays fast with tens
+of thousands of rows.
+
+```tsx
+const columns: Column<Product>[] = [
+  { key: 'name', title: 'Name' },
+  { key: 'sku', title: 'SKU' },
+  { key: 'stock', title: 'Stock', searchable: false },
+];
+```
+
+Change the placeholder with `translations={{ searchPlaceholder: 'Search products…' }}`.
+
+## Sorting
+
+Tapping a header cycles **ascending → descending → off**. Text is compared with
+`Intl.Collator`, numbers numerically, dates by time, and blank values always go last.
+
+```tsx
+const table = useTable(data, columns, {
+  locale: 'tr', // collation for text; defaults to the device locale
+  initialState: { sort: { key: 'createdAt', direction: 'desc' } },
+});
+```
+
+For anything else, give the column a comparator. It describes ascending order; descending
+reverses it:
+
+```tsx
+const PRIORITY = ['low', 'medium', 'high', 'critical'];
+
+{
+  key: 'priority',
+  title: 'Priority',
+  sortFn: (a, b) => PRIORITY.indexOf(a.priority) - PRIORITY.indexOf(b.priority),
+}
+```
+
+`sortable: false` turns sorting off for a column.
+
+## Column filters
+
+Add `filterConfig` and the header gets a filter button that opens a dialog:
+
+| `type` | UI | Matches |
+| --- | --- | --- |
+| `'text'` | Text field | Value contains the text (case- and accent-insensitive) |
+| `'select'` | Radio list of `options` | Value equals the chosen option |
+| `'boolean'` | Yes / No / All | `true` / `false` values |
+| `'number-range'` | Min and max fields | `min ≤ value ≤ max`; either bound can be empty |
+
+```tsx
+{ key: 'name', title: 'Name', filterConfig: { type: 'text' } },
+{ key: 'status', title: 'Status', filterConfig: { type: 'select', options: ['Active', 'Paused'] } },
+{ key: 'remote', title: 'Remote', filterConfig: { type: 'boolean' } },
+{ key: 'price', title: 'Price', filterConfig: { type: 'number-range' } },
+```
+
+Number fields accept a comma as the decimal separator. Active filters are highlighted in the
+header, and any filter change returns to page 1.
+
+Set filters from code with `table.setColumnFilter('status', 'Active')`; clear one with
+`undefined`.

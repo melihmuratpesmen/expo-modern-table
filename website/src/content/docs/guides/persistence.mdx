@@ -1,0 +1,41 @@
+---
+title: Persisting layout
+description: Save and restore column visibility, pinning, order, widths, density and page size.
+sidebar:
+  order: 12
+---
+
+`useTable` exposes the user's layout choices as one serializable object:
+
+```ts
+interface TablePreferences {
+  columnVisibility: Record<string, boolean>; // overrides of each column's `hidden` default
+  columnPinning: Record<string, boolean>; // overrides of each column's `isSticky` default
+  columnOrder: string[];
+  columnWidths: Record<string, number>;
+  density: 'compact' | 'standard' | 'comfortable';
+  pageSize: number;
+}
+```
+
+Save it with `onPreferencesChange`, restore it with `initialPreferences` (when it's available
+synchronously) or `setPreferences` (after loading it asynchronously).
+
+```tsx
+const table = useTable(data, columns, {
+  onPreferencesChange: prefs => AsyncStorage.setItem('orders-table', JSON.stringify(prefs)),
+});
+
+useEffect(() => {
+  AsyncStorage.getItem('orders-table').then(saved => {
+    if (saved) table.setPreferences(JSON.parse(saved));
+  });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, []);
+```
+
+Visibility and pinning are stored as **overrides**, so columns you add in a later app version
+still appear with their own defaults, and removed columns are ignored.
+
+See the [AsyncStorage & MMKV recipe](/expo-modern-table/recipes/persist-layout/) for complete versions,
+including a synchronous restore with MMKV.

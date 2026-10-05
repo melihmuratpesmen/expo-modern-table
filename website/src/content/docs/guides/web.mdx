@@ -1,0 +1,25 @@
+---
+title: Web support
+description: Running the same table in the browser with react-native-web.
+sidebar:
+  order: 15
+---
+
+The table runs on the web through [react-native-web](https://necolas.github.io/react-native-web/)
+— the [live demo](/expo-modern-table/demo/) is the Expo example app exported for the web.
+
+```bash
+npx expo install react-dom react-native-web @expo/metro-runtime
+npx expo start --web
+```
+
+What to know:
+
+- **Gestures** (column resize, header and row drag) use Gesture Handler's web support and work
+  with a mouse or touch.
+- **Fullscreen** relies on screen orientation, which browsers don't offer — don't pass
+  `screenOrientation` on the web.
+- **CSV export**: create a `Blob` and download it instead of using `expo-sharing`
+  (see the [CSV recipe](/expo-modern-table/recipes/csv-export/#on-the-web)).
+- **Bundle size**: the default icons come from `lucide-react-native`. Expo's tree shaking
+  (`EXPO_UNSTABLE_TREE_SHAKING=1` with `expo export`) keeps only the icons you use.

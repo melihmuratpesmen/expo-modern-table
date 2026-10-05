@@ -1,0 +1,23 @@
+{
+  "name": "expo-modern-table-website",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "demo": "EXPO_BASE_URL=/expo-modern-table/demo npm --prefix ../example run export:web && rm -rf public/demo && cp -R ../example/dist public/demo",
+    "build": "astro build",
+    "preview": "astro preview",
+    "check": "astro check"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "^0.42.5",
+    "@fontsource-variable/inter": "^5.3.0",
+    "@fontsource-variable/jetbrains-mono": "^5.3.0",
+    "astro": "^7.3.5",
+    "lucide-static": "^1.52.0",
+    "sharp": "^0.35.5"
+  },
+  "devDependencies": {
+    "starlight-links-validator": "^0.26.0"
+  }
+}

@@ -907,7 +907,7 @@ export function ModernTable<T extends object>({
             </View>
 
             <View style={styles.paginationRight}>
-              <Text style={styles.pageInfo}>
+              <Text style={styles.pageInfo} numberOfLines={1}>
                 {t.page} {pagination.currentPage} / {pagination.totalPages}
               </Text>
               <View style={styles.paginationButtons}>

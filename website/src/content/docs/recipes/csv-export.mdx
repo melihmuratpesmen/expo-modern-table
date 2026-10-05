@@ -1,0 +1,85 @@
+---
+title: CSV export & sharing
+description: Export rows to CSV and hand the file to the share sheet, or download it on the web.
+sidebar:
+  order: 4
+---
+
+`table.getCsv()` returns CSV text for the **visible columns in on-screen order**, using each
+column's `getValue`.
+
+```ts
+table.getCsv(); // every row matching search + filters (default)
+table.getCsv({ rows: 'selected' }); // or 'page' | 'all'
+table.getCsv({ delimiter: ';', bom: true }); // Excel with a European / Turkish locale
+```
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `rows` | `'filtered'` | `'filtered'`, `'page'`, `'selected'` or `'all'`. |
+| `delimiter` | `','` | Excel in many European locales expects `';'`. |
+| `bom` | `false` | Prepend a UTF-8 byte-order mark so Excel shows `ç ğ ş é` correctly. |
+| `includeHeader` | `true` | Column titles as the first line. |
+| `lineEnding` | `'\r\n'` | RFC 4180 line endings. |
+| `escapeFormulas` | `true` | Prefix text that starts with `= + - @` so spreadsheets don't run it as a formula. |
+| `formatValue` | — | `(value, column, row) => string` for custom cell text. |
+
+```ts
+const csv = table.getCsv({
+  formatValue: (value, column, row) =>
+    column.key === 'createdAt' ? new Date(row.createdAt).toISOString().slice(0, 10) : String(value ?? ''),
+});
+```
+
+Without `useTable`, use `toCsv(rows, columns, options)`.
+
+## Share on iOS and Android
+
+```bash
+npx expo install expo-file-system expo-sharing
+```
+
+```ts title="shareCsv.ts"
+import { File, Paths } from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
+
+export async function shareCsv(csv: string, filename = 'export.csv') {
+  const file = new File(Paths.cache, filename);
+  file.create({ overwrite: true });
+  file.write(csv);
+  await Sharing.shareAsync(file.uri, {
+    mimeType: 'text/csv',
+    UTI: 'public.comma-separated-values-text',
+    dialogTitle: filename,
+  });
+}
+```
+
+```tsx
+<ModernTable
+  columns={columns}
+  {...table.getTableProps()}
+  renderBulkActions={() => (
+    <Button title="Export" onPress={() => shareCsv(table.getCsv({ rows: 'selected', bom: true }), 'orders.csv')} />
+  )}
+/>
+```
+
+This uses the `File` API of `expo-file-system` (SDK 54 and later). On older SDKs, write with
+`FileSystem.writeAsStringAsync(FileSystem.cacheDirectory + filename, csv)`.
+
+## On the web
+
+```ts
+export function downloadCsv(csv: string, filename = 'export.csv') {
+  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+```
+
+Pick one with `Platform.OS === 'web'`. The [live demo](/expo-modern-table/demo/?scenario=orders) exports
+selected orders this way.

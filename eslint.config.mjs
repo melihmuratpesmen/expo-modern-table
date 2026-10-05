@@ -5,7 +5,7 @@ import prettier from 'eslint-config-prettier';
 import globals from 'globals';
 
 export default tseslint.config(
-  { ignores: ['node_modules/', 'lib/', 'coverage/', 'example/', 'docs/'] },
+  { ignores: ['node_modules/', 'lib/', 'coverage/', 'example/', 'docs/', 'website/'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   reactHooks.configs.flat.recommended,

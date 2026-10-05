@@ -1,0 +1,83 @@
+---
+title: Translations
+description: Translate every built-in text and screen-reader label; English and Turkish included.
+sidebar:
+  order: 11
+---
+
+Every text the table shows — and every accessibility label it announces — comes from the
+`translations` prop. Pass only the keys you want to change; the rest fall back to English.
+
+```tsx
+<ModernTable
+  columns={columns}
+  {...table.getTableProps()}
+  translations={{ searchPlaceholder: 'Search orders…', empty: 'No orders yet' }}
+/>
+```
+
+## Turkish
+
+A complete Turkish set is included:
+
+```tsx
+import { TR_TRANSLATIONS } from 'expo-modern-table';
+
+<ModernTable /* … */ translations={{ ...TR_TRANSLATIONS, searchPlaceholder: 'Sipariş ara…' }} />;
+```
+
+## Another language
+
+Type a full object as `TableTranslations` to get a compile error when a key is missing:
+
+```tsx
+import type { TableTranslations } from 'expo-modern-table';
+
+export const DE: TableTranslations = {
+  searchPlaceholder: 'Suchen…',
+  all: 'Alle',
+  yesActive: 'Ja',
+  noPassive: 'Nein',
+  min: 'Min',
+  max: 'Max',
+  unknownFilter: 'Unbekannter Filter',
+  filter: 'Filtern',
+  clear: 'Zurücksetzen',
+  apply: 'Anwenden',
+  selected: 'Ausgewählt',
+  columns: 'Spalten',
+  show: 'Anzeigen:',
+  page: 'Seite',
+  empty: 'Keine Daten gefunden.',
+  loading: 'Wird geladen…',
+  error: 'Etwas ist schiefgelaufen.',
+  retry: 'Erneut versuchen',
+  selectAll: 'Alle auswählen',
+  selectRow: 'Zeile auswählen',
+  sortAscending: 'aufsteigend sortiert',
+  sortDescending: 'absteigend sortiert',
+  previousPage: 'Vorherige Seite',
+  nextPage: 'Nächste Seite',
+  rowsPerPage: 'Zeilen pro Seite',
+  fullscreen: 'Vollbild',
+  density: 'Zeilenhöhe',
+  reorderRows: 'Zeilen anordnen',
+  dragToReorder: 'Zum Verschieben ziehen',
+  pinColumn: 'Spalte fixieren',
+  close: 'Schließen',
+  expandRow: 'Zeile aufklappen',
+  collapseRow: 'Zeile zuklappen',
+};
+```
+
+The English defaults are exported as `DEFAULT_TRANSLATIONS`. A pull request with your language
+is very welcome.
+
+## Locale-aware data
+
+- **Sorting** compares text with `Intl.Collator` in the device locale; set
+  `useTable(data, columns, { locale: 'de' })` to choose one.
+- **Search** ignores case and accents in every language and folds the Turkish `İ / I / ı / i`.
+- **Summary row** numbers use `Intl.NumberFormat` in the device locale.
+- **Number input** in editable cells and range filters accepts both `.` and `,` as the decimal
+  separator.

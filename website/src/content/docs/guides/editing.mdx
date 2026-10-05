@@ -1,0 +1,58 @@
+---
+title: Inline editing
+description: Tap a cell to edit it in place; numbers stay numbers.
+sidebar:
+  order: 6
+---
+
+Mark columns `editable` and handle `onRowChange`. Tapping an editable cell turns it into a text
+field; the edit is committed when the field loses focus (or the keyboard's return key is
+pressed).
+
+```tsx
+const columns: Column<Product>[] = [
+  { key: 'name', title: 'Name', editable: true },
+  { key: 'price', title: 'Price', align: 'right', editable: true },
+  { key: 'stock', title: 'Stock', align: 'right', editable: true },
+];
+
+function Inventory() {
+  const [products, setProducts] = useState(initialProducts);
+  const table = useTable(products, columns);
+
+  return (
+    <ModernTable
+      columns={columns}
+      {...table.getTableProps()}
+      onRowChange={updated =>
+        setProducts(prev => prev.map(p => (p.id === updated.id ? updated : p)))
+      }
+    />
+  );
+}
+```
+
+`onRowChange` receives a copy of the row with the new value. Persist it however you like —
+local state, a mutation, an optimistic update.
+
+## Types are preserved
+
+If the original value is a number, the input uses a decimal keyboard and the text is parsed back
+to a number. A comma works as the decimal separator (`12,5` → `12.5`). Invalid numbers are
+ignored and the cell keeps its old value. Everything else is saved as a string.
+
+## Editable cells with custom rendering
+
+`renderCell` and `editable` work together: your formatted cell is shown, and tapping it edits
+the raw value.
+
+```tsx
+{
+  key: 'salary',
+  title: 'Salary',
+  editable: true,
+  renderCell: row => <Text style={{ textDecorationLine: 'underline' }}>{formatMoney(row.salary)}</Text>,
+}
+```
+
+Without `onRowChange`, `editable` has no effect.
