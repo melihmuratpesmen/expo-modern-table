@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { StyleSheet } from 'react-native';
 import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 import Animated, {
@@ -8,6 +8,7 @@ import Animated, {
   runOnJS,
 } from 'react-native-reanimated';
 import { TableTheme } from './theme/tokens';
+import { useStableCallback } from './hooks/useStableCallback';
 
 /** Long-press before a header drag starts, so horizontal scrolling over headers still works. */
 const DRAG_ACTIVATION_DELAY_MS = 250;
@@ -38,27 +39,38 @@ export function DraggableHeader({
   const zIndex = useSharedValue(1);
   const scale = useSharedValue(1);
 
-  const panGesture = Gesture.Pan()
-    .withTestId(testID ?? '')
-    .activateAfterLongPress(DRAG_ACTIVATION_DELAY_MS)
-    .onStart(() => {
-      isDragging.value = true;
-      zIndex.value = 100;
-      scale.value = 1.05;
-    })
-    .onUpdate(e => {
-      translationX.value = e.translationX;
-    })
-    .onEnd(e => {
-      if (e.translationX !== 0) runOnJS(onDragEnd)(index, e.translationX);
-    })
-    .onFinalize(() => {
-      // Runs for taps and cancelled gestures too, so the header never stays "lifted".
-      isDragging.value = false;
-      zIndex.value = 1;
-      scale.value = 1;
-      translationX.value = withSpring(0);
-    });
+  // Reads the latest index, so the gesture below never has to be rebuilt mid-drag (a rebuilt
+  // gesture loses its finalize callback and leaves the header stuck in the lifted state).
+  const handleDragEnd = useStableCallback((dx: number) => onDragEnd(index, dx));
+
+  // Shared values are mutable by design inside worklets; the compiler rule doesn't know that.
+  /* eslint-disable react-hooks/immutability */
+  const panGesture = useMemo(
+    () =>
+      Gesture.Pan()
+        .withTestId(testID ?? '')
+        .activateAfterLongPress(DRAG_ACTIVATION_DELAY_MS)
+        .onStart(() => {
+          isDragging.value = true;
+          zIndex.value = 100;
+          scale.value = 1.05;
+        })
+        .onUpdate(e => {
+          translationX.value = e.translationX;
+        })
+        .onEnd(e => {
+          if (e.translationX !== 0) runOnJS(handleDragEnd)(e.translationX);
+        })
+        .onFinalize(() => {
+          // Runs for taps and cancelled gestures too, so the header never stays "lifted".
+          isDragging.value = false;
+          zIndex.value = 1;
+          scale.value = 1;
+          translationX.value = withSpring(0);
+        }),
+    [testID, handleDragEnd, isDragging, zIndex, scale, translationX]
+  );
+  /* eslint-enable react-hooks/immutability */
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: translationX.value }, { scale: scale.value }],

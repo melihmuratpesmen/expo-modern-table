@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Gesture } from 'react-native-gesture-handler';
 import Animated, {
   useSharedValue,
@@ -7,6 +7,7 @@ import Animated, {
   runOnJS,
 } from 'react-native-reanimated';
 import { TableTheme } from './theme/tokens';
+import { useStableCallback } from './hooks/useStableCallback';
 
 export interface DraggableRowChildrenProps {
   dragGesture: ReturnType<typeof Gesture.Pan>;
@@ -35,24 +36,34 @@ export function DraggableRow({
   const isDragging = useSharedValue(false);
   const zIndex = useSharedValue(1);
 
-  const panGesture = Gesture.Pan()
-    .withTestId(testID ?? '')
-    .enabled(isDragEnabled)
-    .onStart(() => {
-      isDragging.value = true;
-      zIndex.value = 100;
-    })
-    .onUpdate(e => {
-      translationY.value = e.translationY;
-    })
-    .onEnd(e => {
-      if (e.translationY !== 0) runOnJS(onDragEnd)(index, e.translationY);
-    })
-    .onFinalize(() => {
-      isDragging.value = false;
-      zIndex.value = 1;
-      translationY.value = withSpring(0);
-    });
+  // Reads the latest index, so the gesture is only rebuilt when it is enabled / disabled.
+  const handleDragEnd = useStableCallback((dy: number) => onDragEnd(index, dy));
+
+  // Shared values are mutable by design inside worklets; the compiler rule doesn't know that.
+  /* eslint-disable react-hooks/immutability */
+  const panGesture = useMemo(
+    () =>
+      Gesture.Pan()
+        .withTestId(testID ?? '')
+        .enabled(isDragEnabled)
+        .onStart(() => {
+          isDragging.value = true;
+          zIndex.value = 100;
+        })
+        .onUpdate(e => {
+          translationY.value = e.translationY;
+        })
+        .onEnd(e => {
+          if (e.translationY !== 0) runOnJS(handleDragEnd)(e.translationY);
+        })
+        .onFinalize(() => {
+          isDragging.value = false;
+          zIndex.value = 1;
+          translationY.value = withSpring(0);
+        }),
+    [testID, isDragEnabled, handleDragEnd, isDragging, zIndex, translationY]
+  );
+  /* eslint-enable react-hooks/immutability */
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: translationY.value }],

@@ -94,6 +94,25 @@ export function TableToolbar<T>({
   // phone there is no room for them next to the regular buttons.
   const showBulkBar = selectedCount > 0 && !!bulkActions;
 
+  // Shown when `screenOrientation` is passed. Stays visible in the bulk bar while in
+  // fullscreen, so selecting rows never hides the way out of landscape.
+  const fullscreenButton = canToggleFullscreen ? (
+    <TouchableOpacity
+      onPress={toggleFullscreen}
+      style={styles.iconButton}
+      activeOpacity={0.7}
+      accessibilityRole="button"
+      accessibilityLabel={translations.fullscreen}
+      accessibilityState={{ selected: isFullscreen }}
+    >
+      {isFullscreen ? (
+        <icons.exitFullscreen size={20} color={theme.text} />
+      ) : (
+        <icons.fullscreen size={20} color={theme.text} />
+      )}
+    </TouchableOpacity>
+  ) : null;
+
   const renderLeft = () => {
     if (showBulkBar) {
       return (
@@ -141,26 +160,12 @@ export function TableToolbar<T>({
     <View style={styles.container}>
       {renderLeft()}
 
+      {showBulkBar && isFullscreen && <View style={styles.actions}>{fullscreenButton}</View>}
+
       {/* ACTION BUTTONS */}
       {!showBulkBar && (
         <View style={styles.actions}>
-          {/* Fullscreen toggle — shown when `screenOrientation` is passed */}
-          {canToggleFullscreen && (
-            <TouchableOpacity
-              onPress={toggleFullscreen}
-              style={styles.iconButton}
-              activeOpacity={0.7}
-              accessibilityRole="button"
-              accessibilityLabel={translations.fullscreen}
-              accessibilityState={{ selected: isFullscreen }}
-            >
-              {isFullscreen ? (
-                <icons.exitFullscreen size={20} color={theme.text} />
-              ) : (
-                <icons.fullscreen size={20} color={theme.text} />
-              )}
-            </TouchableOpacity>
-          )}
+          {fullscreenButton}
 
           {/* Row Reorder Toggle */}
           {enableRowReorder && onToggleSelectionMode && (

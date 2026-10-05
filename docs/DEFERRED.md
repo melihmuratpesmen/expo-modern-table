@@ -89,8 +89,9 @@ Fullscreen = landscape lock only; hiding app chrome is left to `onFullscreenChan
 - ~~Column pin presets / persistence~~ — `preferences` / `onPreferencesChange` in `0.5.0`
 - ~~CSV / export~~ — `getCsv` / `toCsv` in `0.5.0`
 - Virtualized horizontal sticky improvements
-- iOS list remount on sort (`key={listIdentityKey}`, see KNOWN_ISSUES): re-check on device with
-  FlashList v2 whether it is still needed — it resets scroll position on every sort
+- iOS list remount on sort (`key={listIdentityKey}`, see KNOWN_ISSUES): with content anchoring
+  turned off in `0.5.0` it may no longer be needed; removing it would keep the scroll position on
+  sort. Re-check with FlashList v1 and v2 before dropping it
 
 
 ## When picking work up

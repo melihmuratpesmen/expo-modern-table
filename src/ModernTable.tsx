@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { ScrollView as GHScrollView } from 'react-native-gesture-handler';
+import * as FlashListModule from '@shopify/flash-list';
 import { FlashList, ListRenderItemInfo } from '@shopify/flash-list';
 import { defaultIcons, TableIconsProvider } from './icons';
 import { useShallowStable } from './hooks/useShallowStable';
@@ -47,9 +48,13 @@ const AnimatedGHScrollView = Animated.createAnimatedComponent(GHScrollView);
 
 const defaultGetRowId = (row: object): RowId => (row as TableRow).id;
 
+/** FlashList v2 exports the recycling hooks; v1 does not. */
+const IS_FLASH_LIST_V2 = 'useRecyclingState' in FlashListModule;
+
 // Resize limits for columns without their own minWidth / maxWidth.
 const MIN_RESIZE_WIDTH = 40;
 const MAX_RESIZE_WIDTH = 1000;
+const RESIZE_HANDLE_WIDTH = 12;
 
 export function ModernTable<T extends object>({
   data,
@@ -246,9 +251,18 @@ export function ModernTable<T extends object>({
   );
   const totalWidth = leadingWidth + columnWidths.reduce((acc, width) => acc + width, 0);
   const currentRowHeight = ROW_HEIGHTS[density];
-  // iOS + FlashList can keep stale recycled cells after rapid sort/order switches.
-  // Remount list on identity changes to force consistent redraw.
-  const listIdentityKey = `${sortColumn ?? 'nosort'}-${sortDirection ?? 'none'}-${columnOrder.join('|')}`;
+  // v2 keeps the first visible row in place when data changes (maintainVisibleContentPosition,
+  // on by default). In a table that scrolls the top rows out of view after a row move or sort,
+  // so it is turned off. v1 has no such default — the same prop name there goes to RN's
+  // ScrollView and would turn it on — and needs estimatedItemSize instead.
+  const flashListVersionProps = IS_FLASH_LIST_V2
+    ? { maintainVisibleContentPosition: { disabled: true } }
+    : { estimatedItemSize: currentRowHeight };
+
+  // iOS + FlashList can keep stale recycled cells after rapid sort switches, so the list is
+  // remounted when the sort changes (which also scrolls back to the top). Column order is not
+  // part of the key: reordering only re-renders rows through the row context.
+  const listIdentityKey = `${sortColumn ?? 'nosort'}-${sortDirection ?? 'none'}`;
 
   // --- REORDER ---
   const handleHeaderDragEnd = (fromIndex: number, translationX: number) => {
@@ -338,23 +352,32 @@ export function ModernTable<T extends object>({
     [scrollX]
   );
 
+  const stickyTranslations = useMemo(() => {
+    const map = new Map<string, Animated.AnimatedInterpolation<number>>();
+    for (const col of columnsWithOffsets) {
+      if (!col.isSticky) continue;
+      const threshold = col.offsetX - col.stickyOffset;
+      map.set(
+        col.key as string,
+        scrollX.interpolate({
+          inputRange: [-1, threshold, threshold + 1],
+          outputRange: [0, 0, 1],
+          extrapolateLeft: 'clamp',
+        })
+      );
+    }
+    return map;
+  }, [columnsWithOffsets, scrollX]);
+
   const stickyStyles = useMemo(() => {
     const map = new Map<string, AnimatedViewStyle>();
     columnsWithOffsets.forEach((col, index) => {
-      if (!col.isSticky) return;
-      const threshold = col.offsetX - col.stickyOffset;
+      const translateX = stickyTranslations.get(col.key as string);
+      if (!translateX) return;
       map.set(col.key as string, {
         position: 'relative',
         zIndex: 100 - index,
-        transform: [
-          {
-            translateX: scrollX.interpolate({
-              inputRange: [-1, threshold, threshold + 1],
-              outputRange: [0, 0, 1],
-              extrapolateLeft: 'clamp',
-            }),
-          },
-        ],
+        transform: [{ translateX }],
         borderRightWidth: 1,
         borderRightColor: tableTheme.border,
         shadowColor: '#000',
@@ -365,7 +388,7 @@ export function ModernTable<T extends object>({
       });
     });
     return map;
-  }, [columnsWithOffsets, scrollX, tableTheme.border]);
+  }, [columnsWithOffsets, stickyTranslations, tableTheme.border]);
 
   // --- RENDERERS ---
 
@@ -501,7 +524,9 @@ export function ModernTable<T extends object>({
           {col.renderHeader ? (
             col.renderHeader(col)
           ) : (
-            <Text style={styles.headerText}>{col.title}</Text>
+            <Text style={styles.headerText} numberOfLines={1}>
+              {col.title}
+            </Text>
           )}
           {isActiveSort &&
             (sortDirection === 'asc' ? (
@@ -523,18 +548,6 @@ export function ModernTable<T extends object>({
               color={isFiltered ? tableTheme.primary : tableTheme.textSecondary}
             />
           </TouchableOpacity>
-        )}
-
-        {enableColumnResize && col.resizable !== false && (
-          <ColumnResizeHandle
-            width={width}
-            minWidth={col.minWidth ?? MIN_RESIZE_WIDTH}
-            maxWidth={col.maxWidth ?? MAX_RESIZE_WIDTH}
-            theme={tableTheme}
-            onResizeEnd={newWidth => handleColumnResize(key, newWidth)}
-            label={col.title}
-            testID={`resize-${key}`}
-          />
         )}
       </View>
     );
@@ -569,6 +582,41 @@ export function ModernTable<T extends object>({
       </Animated.View>
     );
   };
+
+  /**
+   * Resize handles sit on top of the header cells as siblings, not inside them: nested in a
+   * draggable header, a resize drag would also start the header's long-press reorder.
+   */
+  const renderResizeHandles = () =>
+    columnsWithOffsets.map((col, index) => {
+      if (col.resizable === false) return null;
+      const key = col.key as string;
+      const translateX = stickyTranslations.get(key);
+      return (
+        <Animated.View
+          key={`resize-${key}`}
+          style={[
+            styles.resizeHandle,
+            {
+              left: col.offsetX + col.layoutWidth - RESIZE_HANDLE_WIDTH / 2,
+              // Above its own header cell; a non-sticky handle slides under sticky columns.
+              zIndex: translateX ? 101 - index : 2,
+            },
+            translateX && { transform: [{ translateX }] },
+          ]}
+        >
+          <ColumnResizeHandle
+            width={col.layoutWidth}
+            minWidth={col.minWidth ?? MIN_RESIZE_WIDTH}
+            maxWidth={col.maxWidth ?? MAX_RESIZE_WIDTH}
+            theme={tableTheme}
+            onResizeEnd={newWidth => handleColumnResize(key, newWidth)}
+            label={col.title}
+            testID={`resize-${key}`}
+          />
+        </Animated.View>
+      );
+    });
 
   // --- ROWS ---
   const rowLabels = useMemo(
@@ -735,6 +783,7 @@ export function ModernTable<T extends object>({
                 {showLeadingColumn && renderHeaderLeadingCell()}
                 {isExpandable && renderExpanderPlaceholder()}
                 {columnsWithOffsets.map((col, index) => renderHeaderCell(col, index))}
+                {enableColumnResize && renderResizeHandles()}
               </View>
 
               {/* BODY */}
@@ -770,11 +819,7 @@ export function ModernTable<T extends object>({
                     renderItem={renderItem}
                     keyExtractor={keyExtractor}
                     contentContainerStyle={styles.listContent}
-                    // FlashList v1 needs estimatedItemSize; v2 dropped it from its types. A
-                    // ts-expect-error would break type-checking against v1, so ignore instead.
-                    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-                    // @ts-ignore
-                    estimatedItemSize={currentRowHeight}
+                    {...flashListVersionProps}
                     scrollEnabled={scrollEnabled}
                     refreshing={!!refreshing}
                     onRefresh={onRefresh}

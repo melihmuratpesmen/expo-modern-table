@@ -68,11 +68,18 @@ export function createTableStyles(theme: TableTheme) {
       justifyContent: 'center',
     },
     headerText: {
+      flexShrink: 1,
       fontFamily: theme.fontFamily.bold,
       color: theme.headerText,
       fontSize: 11,
       textTransform: 'uppercase', // Modern touch
       letterSpacing: 0.5,
+    },
+    resizeHandle: {
+      position: 'absolute',
+      top: 0,
+      bottom: 0,
+      width: 12,
     },
     expanderCell: {
       width: EXPANDER_WIDTH,

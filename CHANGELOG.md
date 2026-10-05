@@ -2,6 +2,22 @@
 
 ## 0.5.0
 
+First release after 0.1.2. The 0.2.0–0.4.0 entries below were developed in the same branch and
+were not published separately — upgrading from 0.1.x, read all of them (breaking changes are
+listed under 0.2.0, 0.3.0 and 0.4.0).
+
+### Fixed (found on device)
+
+- FlashList v2 kept the first visible row anchored when data changed
+  (`maintainVisibleContentPosition`, on by default), so moving a row — or sorting / filtering
+  on Android — scrolled the top rows out of view. It is now turned off (v2 only).
+- Resizing a column no longer starts the header's reorder drag or leaves the header stuck in
+  the lifted state: resize handles sit beside the header cells, and drag / resize gestures are
+  memoized so a re-render can't drop their finalize callback.
+- The fullscreen exit button stays in the bulk-action bar while in fullscreen.
+- Reordering columns no longer remounts the iOS list (which scrolled it to the top).
+- Header titles stay on one line and truncate.
+
 ### Added
 
 - Summary row: `Column.footer` (`'sum' | 'avg' | 'min' | 'max' | 'count'` or a function) and

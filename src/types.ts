@@ -219,7 +219,8 @@ export interface ModernTableBaseProps<T extends object> {
 
   /**
    * Rows the summary row (`Column.footer`) aggregates. Defaults to `data`; `useTable` passes
-   * every row matching the filters, not only the current page.
+   * every row matching the filters, not only the current page — except in `manual` mode, where
+   * only the current page exists (use a function footer with server totals there).
    */
   footerData?: T[];
 

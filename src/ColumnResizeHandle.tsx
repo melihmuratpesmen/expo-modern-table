@@ -1,8 +1,5 @@
-import React from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { AccessibilityActionEvent, StyleSheet } from 'react-native';
-
-/** Width change per screen-reader increment / decrement. */
-const ACCESSIBILITY_STEP = 10;
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   runOnJS,
@@ -11,6 +8,10 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { TableTheme } from './theme/tokens';
+import { useStableCallback } from './hooks/useStableCallback';
+
+/** Width change per screen-reader increment / decrement. */
+const ACCESSIBILITY_STEP = 10;
 
 interface ColumnResizeHandleProps {
   width: number;
@@ -23,8 +24,10 @@ interface ColumnResizeHandleProps {
 }
 
 /**
- * Drag handle on a header cell's right edge. The guide follows the finger and the width is
- * committed once on release, so rows don't re-render on every frame.
+ * Drag handle for a column's right edge; fills its (absolutely positioned) parent. The guide
+ * follows the finger and the width is committed once on release, so rows don't re-render on
+ * every frame. The gesture is created once: rebuilding it mid-drag (e.g. when the committed
+ * width re-renders the header) would drop its finalize callback and leave the guide stuck.
  */
 export function ColumnResizeHandle({
   width,
@@ -37,33 +40,49 @@ export function ColumnResizeHandle({
 }: ColumnResizeHandleProps) {
   const translationX = useSharedValue(0);
   const isActive = useSharedValue(false);
+  // Latest bounds for the worklet, without making them gesture dependencies.
+  const bounds = useSharedValue({ width, minWidth, maxWidth });
+  useEffect(() => {
+    bounds.value = { width, minWidth, maxWidth };
+  }, [bounds, width, minWidth, maxWidth]);
 
-  const gesture = Gesture.Pan()
-    .withTestId(testID ?? '')
-    // Horizontal only, and immediately — header reordering needs a long-press first.
-    .activeOffsetX([-4, 4])
-    .failOffsetY([-12, 12])
-    .onStart(() => {
-      isActive.value = true;
-    })
-    .onUpdate(e => {
-      const next = Math.min(Math.max(width + e.translationX, minWidth), maxWidth);
-      translationX.value = next - width;
-    })
-    .onEnd(e => {
-      const next = Math.min(Math.max(width + e.translationX, minWidth), maxWidth);
-      if (next !== width) runOnJS(onResizeEnd)(Math.round(next));
-    })
-    .onFinalize(() => {
-      isActive.value = false;
-      translationX.value = withTiming(0, { duration: 120 });
-    });
+  const clamp = (next: number) => Math.min(Math.max(next, minWidth), maxWidth);
+
+  const commit = useStableCallback((delta: number) => {
+    const next = Math.round(clamp(width + delta));
+    if (next !== width) onResizeEnd(next);
+  });
+
+  // Shared values are mutable by design inside worklets; the compiler rule doesn't know that.
+  /* eslint-disable react-hooks/immutability */
+  const gesture = useMemo(
+    () =>
+      Gesture.Pan()
+        .withTestId(testID ?? '')
+        // Horizontal only, and immediately — header reordering needs a long-press first.
+        .activeOffsetX([-4, 4])
+        .failOffsetY([-12, 12])
+        .onStart(() => {
+          isActive.value = true;
+        })
+        .onUpdate(e => {
+          const b = bounds.value;
+          const next = Math.min(Math.max(b.width + e.translationX, b.minWidth), b.maxWidth);
+          translationX.value = next - b.width;
+        })
+        .onEnd(e => {
+          runOnJS(commit)(e.translationX);
+        })
+        .onFinalize(() => {
+          isActive.value = false;
+          translationX.value = withTiming(0, { duration: 120 });
+        }),
+    [testID, commit, bounds, isActive, translationX]
+  );
+  /* eslint-enable react-hooks/immutability */
 
   const handleAccessibilityAction = (e: AccessibilityActionEvent) => {
-    const step =
-      e.nativeEvent.actionName === 'increment' ? ACCESSIBILITY_STEP : -ACCESSIBILITY_STEP;
-    const next = Math.min(Math.max(width + step, minWidth), maxWidth);
-    if (next !== width) onResizeEnd(next);
+    commit(e.nativeEvent.actionName === 'increment' ? ACCESSIBILITY_STEP : -ACCESSIBILITY_STEP);
   };
 
   const guideStyle = useAnimatedStyle(() => ({
@@ -91,14 +110,9 @@ export function ColumnResizeHandle({
 
 const styles = StyleSheet.create({
   hitArea: {
-    position: 'absolute',
-    right: -6,
-    top: 0,
-    bottom: 0,
-    width: 12,
+    ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
     justifyContent: 'center',
-    zIndex: 10,
   },
   guide: {
     width: 3,

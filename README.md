@@ -219,7 +219,9 @@ const columns: Column<Row>[] = [
 ```
 
 With `useTable` the footer covers every row matching the filters (`footerData`), not just the
-current page.
+current page. In `manual` mode only the current page is on the device, so built-in aggregations
+would cover that page alone — show totals from your API with a function footer instead:
+`footer: () => formatNumber(response.totals.net)`.
 
 ### Expandable rows
 

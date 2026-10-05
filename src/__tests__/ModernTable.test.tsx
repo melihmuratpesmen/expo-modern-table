@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { fireGestureHandler, getByGestureTestId } from 'react-native-gesture-handler/jest-utils';
 import { State } from 'react-native-gesture-handler';
 import { Text } from 'react-native';
+import { FlashList } from '@shopify/flash-list';
 import { ModernTable } from '../ModernTable';
 import { Column, TR_TRANSLATIONS } from '../types';
 
@@ -35,6 +36,14 @@ describe('ModernTable', () => {
     render(<ModernTable data={rows} columns={[{ key: 'name', title: 'Name' }]} />);
     expect(screen.getByText('Name')).toBeTruthy();
     expect(screen.getByText('Ayşe')).toBeTruthy();
+  });
+
+  it('turns off FlashList v2 content-position anchoring', () => {
+    // Otherwise moving or sorting rows scrolls the top rows out of view.
+    render(<ModernTable data={rows} columns={[{ key: 'name', title: 'Name' }]} />);
+    const list = screen.UNSAFE_getByType(FlashList);
+    expect(list.props.maintainVisibleContentPosition).toEqual({ disabled: true });
+    expect(list.props.estimatedItemSize).toBeUndefined();
   });
 
   it('reorders the right column when another column is hidden', () => {
@@ -494,6 +503,32 @@ describe('ModernTable toolbar slots', () => {
     );
     expect(screen.getByText('Delete 2')).toBeTruthy();
     expect(screen.queryByPlaceholderText('Search...')).toBeNull();
+  });
+
+  it('keeps the fullscreen exit in the bulk bar while in fullscreen', async () => {
+    const screenOrientation = {
+      lockAsync: jest.fn(async () => {}),
+      OrientationLock: { LANDSCAPE: 5, PORTRAIT_UP: 1 },
+    };
+    const props = {
+      data: rows,
+      columns,
+      onSearchChange: jest.fn(),
+      screenOrientation,
+      renderBulkActions: () => <Text>Bulk</Text>,
+    };
+    const { rerender } = render(<ModernTable {...props} selectedIds={new Set([1])} />);
+    // Not in fullscreen: the bulk bar replaces every toolbar button.
+    expect(screen.queryByLabelText('Fullscreen')).toBeNull();
+
+    rerender(<ModernTable {...props} selectedIds={new Set()} />);
+    await act(async () => fireEvent.press(screen.getByLabelText('Fullscreen')));
+    rerender(<ModernTable {...props} selectedIds={new Set([1])} />);
+
+    expect(screen.getByText('Bulk')).toBeTruthy();
+    expect(screen.getByLabelText('Fullscreen').props.accessibilityState).toMatchObject({
+      selected: true,
+    });
   });
 
   it('shows a mixed header checkbox for a partial selection', () => {
