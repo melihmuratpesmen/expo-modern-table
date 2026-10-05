@@ -1,0 +1,5 @@
+node_modules/
+dist/
+.astro/
+# Built from ../example by `npm run demo` / CI
+public/demo/

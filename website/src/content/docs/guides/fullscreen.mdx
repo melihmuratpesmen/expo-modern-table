@@ -1,0 +1,32 @@
+---
+title: Fullscreen
+description: A toolbar button that rotates the screen to landscape for wide tables.
+sidebar:
+  order: 13
+---
+
+Pass the `expo-screen-orientation` module and the toolbar gets a fullscreen button. Tapping it
+locks the screen to landscape; tapping again restores the previous orientation lock. The lock is
+also restored when the table unmounts, so leaving the screen never keeps your app in landscape.
+
+```bash
+npx expo install expo-screen-orientation
+```
+
+```tsx
+import * as ScreenOrientation from 'expo-screen-orientation';
+
+<ModernTable
+  columns={columns}
+  {...table.getTableProps()}
+  screenOrientation={ScreenOrientation}
+  onFullscreenChange={isFullscreen => navigation.setOptions({ headerShown: !isFullscreen })}
+/>;
+```
+
+The package never imports `expo-screen-orientation` itself, so apps that don't use the button
+don't need it. Any object with the same shape works (`lockAsync`, `getOrientationLockAsync`,
+`OrientationLock.LANDSCAPE` / `PORTRAIT_UP`), which makes bare React Native apps and tests easy.
+
+On iOS, the app must allow landscape: set `"orientation": "default"` in `app.json` (or enable
+the orientations in Xcode). Skip the prop on the web.

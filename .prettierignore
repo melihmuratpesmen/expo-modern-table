@@ -5,3 +5,4 @@ docs/media/
 example/
 package-lock.json
 *.md
+website/

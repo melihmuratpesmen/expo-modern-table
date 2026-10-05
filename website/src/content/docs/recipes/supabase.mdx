@@ -1,0 +1,110 @@
+---
+title: Supabase
+description: Map the table's search, sort, filters and pagination to a Supabase (PostgREST) query.
+sidebar:
+  order: 2
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+With [manual mode](/expo-modern-table/guides/server-side/), every change in `table.state` becomes one
+Supabase query. `count: 'exact'` returns the total number of matches for the page count.
+
+```ts title="queries/orders.ts"
+import type { TableState } from 'expo-modern-table';
+import { supabase } from '../lib/supabase';
+
+export type Order = {
+  id: number;
+  customer: string;
+  email: string;
+  status: 'paid' | 'pending' | 'refunded';
+  total: number;
+  created_at: string;
+};
+
+// Characters with a meaning in PostgREST's `or` filter syntax.
+const sanitize = (text: string) => text.replace(/[,()*%\\]/g, ' ').trim();
+
+export async function fetchOrders(state: TableState) {
+  let query = supabase.from('orders').select('*', { count: 'exact' });
+
+  const q = sanitize(state.searchQuery);
+  if (q) query = query.or(`customer.ilike.*${q}*,email.ilike.*${q}*`);
+
+  for (const [key, value] of Object.entries(state.filters)) {
+    if (value === undefined) continue;
+    if (typeof value === 'object') {
+      if (value.min != null) query = query.gte(key, value.min);
+      if (value.max != null) query = query.lte(key, value.max);
+    } else if (typeof value === 'boolean') {
+      query = query.eq(key, value);
+    } else if (key === 'customer') {
+      query = query.ilike(key, `%${value}%`); // text filter
+    } else {
+      query = query.eq(key, value); // select filter
+    }
+  }
+
+  if (state.sort.key && state.sort.direction) {
+    query = query.order(state.sort.key, { ascending: state.sort.direction === 'asc' });
+  } else {
+    query = query.order('created_at', { ascending: false });
+  }
+
+  const from = (state.page - 1) * state.pageSize;
+  const { data, count, error } = await query.range(from, from + state.pageSize - 1);
+  if (error) throw error;
+  return { rows: data as Order[], total: count ?? 0 };
+}
+```
+
+Use it with the effect from the [server-side guide](/expo-modern-table/guides/server-side/) or with
+[TanStack Query](/expo-modern-table/recipes/tanstack-query/):
+
+```tsx
+const query = useQuery({
+  queryKey: ['orders', table.state],
+  queryFn: () => fetchOrders(table.state),
+  placeholderData: keepPreviousData,
+});
+```
+
+<Aside type="caution" title="Column keys are database columns">
+  This maps column `key`s straight to database columns, so only make columns sortable and
+  filterable when the key exists in the table (use `sortable: false` for computed columns), and
+  keep Row Level Security on — the table never sees rows your policies hide.
+</Aside>
+
+## Selected-row actions
+
+```tsx
+renderBulkActions={ids => (
+  <Button
+    title={`Refund ${ids.size}`}
+    onPress={async () => {
+      await supabase.from('orders').update({ status: 'refunded' }).in('id', [...ids]);
+      table.clearSelection();
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+    }}
+  />
+)}
+```
+
+## Live updates
+
+Subscribe to changes and refetch the visible page:
+
+```ts
+useEffect(() => {
+  const channel = supabase
+    .channel('orders')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () =>
+      queryClient.invalidateQueries({ queryKey: ['orders'] })
+    )
+    .subscribe();
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}, []);
+```

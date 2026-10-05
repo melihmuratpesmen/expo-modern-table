@@ -1,0 +1,64 @@
+---
+title: Summary row
+description: Totals, averages and custom content in a footer row under the table.
+sidebar:
+  order: 8
+---
+
+Give any column a `footer` and the table shows a summary row under the rows:
+
+```tsx
+const columns: Column<Sale>[] = [
+  { key: 'region', title: 'Region', footer: () => 'Total' },
+  { key: 'orders', title: 'Orders', align: 'right', footer: 'sum' },
+  { key: 'revenue', title: 'Revenue', align: 'right', footer: 'sum' },
+  { key: 'margin', title: 'Margin %', align: 'right', footer: 'avg' },
+];
+```
+
+| `footer` | Shows |
+| --- | --- |
+| `'sum'`, `'avg'`, `'min'`, `'max'` | The aggregate of the column's numeric values |
+| `'count'` | The number of non-blank values |
+| `(rows) => ReactNode` | Anything — a label, a formatted value, a component |
+
+Aggregates use the column's `getValue`, skip values that aren't numbers, and are formatted with
+`Intl.NumberFormat` (up to two decimals). For currency or units, use a function:
+
+```tsx
+{
+  key: 'revenue',
+  title: 'Revenue',
+  footer: rows => formatMoney(rows.reduce((sum, r) => sum + r.revenue, 0)),
+}
+```
+
+## Which rows are summarized
+
+With `useTable`, the footer covers **every row matching the search and filters** — not just
+the current page — so the totals stay meaningful while users page through. Without the hook, it
+covers `data`, or whatever you pass as `footerData`.
+
+## Server-side totals
+
+In [manual mode](/expo-modern-table/guides/server-side/) only the current page is on the device. Return the totals
+from your API and render them with a function footer. If the totals live in state, render them
+through a small component (or context) so the row updates when they change:
+
+```tsx
+const TotalsContext = createContext<{ revenue: number } | null>(null);
+
+function RevenueTotal() {
+  const totals = useContext(TotalsContext);
+  return totals ? <Text style={{ fontWeight: '700' }}>{formatMoney(totals.revenue)}</Text> : null;
+}
+
+const columns: Column<Order>[] = [
+  // …
+  { key: 'revenue', title: 'Revenue', footer: () => <RevenueTotal /> },
+];
+
+<TotalsContext.Provider value={response?.totals ?? null}>
+  <ModernTable columns={columns} {...table.getTableProps()} />
+</TotalsContext.Provider>;
+```

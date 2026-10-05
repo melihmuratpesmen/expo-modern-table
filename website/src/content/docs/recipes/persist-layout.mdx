@@ -1,0 +1,88 @@
+---
+title: Persist layout (AsyncStorage / MMKV)
+description: Remember each user's columns, widths, density and page size across app launches.
+sidebar:
+  order: 3
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+`useTable` reports layout changes through `onPreferencesChange` and accepts them back through
+`initialPreferences` or `setPreferences` — see [Persisting layout](/expo-modern-table/guides/persistence/).
+
+<Tabs>
+  <TabItem label="AsyncStorage">
+    Works in Expo Go. Storage is asynchronous, so restore with `setPreferences` once it loads:
+
+    ```bash
+    npx expo install @react-native-async-storage/async-storage
+    ```
+
+    ```tsx title="usePersistentTable.ts"
+    import { useEffect } from 'react';
+    import AsyncStorage from '@react-native-async-storage/async-storage';
+    import { useTable, type Column, type TablePreferences, type TableRow } from 'expo-modern-table';
+
+    export function usePersistentTable<T extends TableRow>(
+      storageKey: string,
+      data: T[],
+      columns: Column<T>[]
+    ) {
+      const table = useTable(data, columns, {
+        onPreferencesChange: prefs => {
+          AsyncStorage.setItem(storageKey, JSON.stringify(prefs)).catch(() => {});
+        },
+      });
+
+      const { setPreferences } = table;
+      useEffect(() => {
+        AsyncStorage.getItem(storageKey).then(saved => {
+          if (saved) setPreferences(JSON.parse(saved) as Partial<TablePreferences>);
+        });
+      }, [storageKey, setPreferences]);
+
+      return table;
+    }
+    ```
+
+    `onPreferencesChange` also fires on mount with the defaults; if your columns load slowly, you
+    may want to skip that first write.
+
+  </TabItem>
+  <TabItem label="MMKV">
+    MMKV reads synchronously, so the saved layout is there on the first render — no flash of the
+    default columns. It needs a development build (not Expo Go).
+
+    ```bash
+    npx expo install react-native-mmkv react-native-nitro-modules
+    ```
+
+    ```tsx title="usePersistentTable.ts"
+    import { createMMKV } from 'react-native-mmkv';
+    import { useTable, type Column, type TablePreferences, type TableRow } from 'expo-modern-table';
+
+    const storage = createMMKV({ id: 'tables' });
+
+    function load(key: string): Partial<TablePreferences> | undefined {
+      const saved = storage.getString(key);
+      return saved ? JSON.parse(saved) : undefined;
+    }
+
+    export function usePersistentTable<T extends TableRow>(
+      storageKey: string,
+      data: T[],
+      columns: Column<T>[]
+    ) {
+      return useTable(data, columns, {
+        initialPreferences: load(storageKey),
+        onPreferencesChange: prefs => storage.set(storageKey, JSON.stringify(prefs)),
+      });
+    }
+    ```
+
+  </TabItem>
+</Tabs>
+
+Use one storage key per table (`'orders-table'`, `'team-table'`). Because visibility and pinning
+are stored as overrides of each column's defaults, adding or removing columns in a later app
+version is safe — new columns show up with their defaults and unknown keys are ignored.

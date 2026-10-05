@@ -1,0 +1,117 @@
+---
+title: Custom cells
+description: Status badges, avatars, progress bars, sparklines and flashing live values.
+sidebar:
+  order: 5
+---
+
+`renderCell` returns any element, so cells can be as rich as your design system. These are the
+patterns used in the [live demo](/expo-modern-table/demo/); the full source is in
+[`example/src`](https://github.com/melihmuratpesmen/expo-modern-table/tree/main/example/src).
+
+Keep custom cells light: they render for every visible row, and rows are recycled while
+scrolling. Memoize expensive pieces and avoid per-cell data fetching.
+
+## Status badge
+
+```tsx
+const TONES = {
+  paid: { fg: '#4338CA', bg: '#EEF2FF' },
+  pending: { fg: '#B45309', bg: '#FFFBEB' },
+  refunded: { fg: '#475569', bg: '#F1F5F9' },
+} as const;
+
+function StatusBadge({ status }: { status: keyof typeof TONES }) {
+  const { fg, bg } = TONES[status];
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, backgroundColor: bg }}>
+      <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: fg }} />
+      <Text style={{ color: fg, fontSize: 12, fontWeight: '600' }}>{status}</Text>
+    </View>
+  );
+}
+
+{ key: 'status', title: 'Status', width: 130, renderCell: row => <StatusBadge status={row.status} /> }
+```
+
+## Avatar and two-line text
+
+```tsx
+{
+  key: 'customer',
+  title: 'Customer',
+  width: 230,
+  renderCell: row => (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
+      <Avatar name={row.customer} />
+      <View style={{ flexShrink: 1 }}>
+        <Text numberOfLines={1}>{row.customer}</Text>
+        <Text numberOfLines={1} style={{ fontSize: 12, color: '#64748B' }}>{row.email}</Text>
+      </View>
+    </View>
+  ),
+}
+```
+
+Two lines fit the standard density (48 pt). Use `numberOfLines={1}` so long text truncates
+instead of growing the row.
+
+## Progress bar
+
+```tsx
+function Progress({ value }: { value: number }) {
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, width: '100%' }}>
+      <View style={{ flex: 1, height: 6, borderRadius: 3, backgroundColor: '#EEF0F7', overflow: 'hidden' }}>
+        <View style={{ width: `${value}%`, height: 6, backgroundColor: '#4F46E5' }} />
+      </View>
+      <Text style={{ fontSize: 12, fontWeight: '600' }}>{value}</Text>
+    </View>
+  );
+}
+```
+
+## Sparkline
+
+With `react-native-svg` (already installed for the icons):
+
+```tsx
+import Svg, { Path } from 'react-native-svg';
+
+const Sparkline = memo(function Sparkline({ points, color }: { points: number[]; color: string }) {
+  const w = 84, h = 26;
+  const min = Math.min(...points), max = Math.max(...points), range = max - min || 1;
+  const d = points
+    .map((p, i) => `${i ? 'L' : 'M'}${(i / (points.length - 1)) * w} ${h - 2 - ((p - min) / range) * (h - 4)}`)
+    .join(' ');
+  return (
+    <Svg width={w} height={h}>
+      <Path d={d} stroke={color} strokeWidth={1.6} fill="none" />
+    </Svg>
+  );
+});
+```
+
+## Flash on change
+
+A cell that highlights when its value changes. Because rows are recycled, give it
+`key={row.id}` so a reused row doesn't flash for another item:
+
+```tsx
+function FlashingPrice({ price, changedAt }: { price: number; changedAt: number }) {
+  const [opacity] = useState(() => new Animated.Value(0));
+  useEffect(() => {
+    if (Date.now() - changedAt > 600) return; // stale change, e.g. a recycled row
+    opacity.setValue(1);
+    Animated.timing(opacity, { toValue: 0, duration: 900, useNativeDriver: true }).start();
+  }, [changedAt, opacity]);
+  return (
+    <View style={{ paddingHorizontal: 6 }}>
+      <Animated.View style={[StyleSheet.absoluteFill, { opacity, backgroundColor: '#ECFDF5', borderRadius: 6 }]} />
+      <Text>{price.toFixed(2)}</Text>
+    </View>
+  );
+}
+
+{ key: 'price', title: 'Price', renderCell: row => <FlashingPrice key={row.id} price={row.price} changedAt={row.tickAt} /> }
+```

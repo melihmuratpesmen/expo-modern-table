@@ -1,0 +1,594 @@
+---
+import { Code } from 'astro:components';
+import { Image } from 'astro:assets';
+import {
+  ArrowRight,
+  Check,
+  Copy,
+  Filter,
+  Globe,
+  Languages,
+  ListChecks,
+  Moon,
+  MoveHorizontal,
+  Pencil,
+  Pin,
+  Server,
+  Sigma,
+  Sun,
+  Rows3,
+  Smartphone,
+} from 'lucide-static';
+import pkg from '../../../package.json';
+
+// lucide no longer ships brand icons; this is the GitHub mark.
+const Github =
+  '<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true"><path d="M12 .3a12 12 0 0 0-3.8 23.38c.6.12.83-.26.83-.57L9 21.07c-3.34.72-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.08-.74.09-.73.09-.73 1.2.09 1.83 1.24 1.83 1.24 1.08 1.83 2.81 1.3 3.5 1 .1-.78.42-1.31.76-1.61-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.14-.3-.54-1.52.1-3.18 0 0 1-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.28-1.55 3.29-1.23 3.29-1.23.64 1.66.24 2.88.12 3.18a4.65 4.65 0 0 1 1.23 3.22c0 4.61-2.8 5.63-5.48 5.92.42.36.81 1.1.81 2.22l-.01 3.29c0 .31.2.69.82.57A12 12 0 0 0 12 .3Z"/></svg>';
+import ordersLight from '../assets/screens/orders-light.png';
+import ordersFilter from '../assets/screens/orders-filter.png';
+import teamDark from '../assets/screens/team-dark.png';
+import marketsDark from '../assets/screens/markets-dark.png';
+import phonePoster from '../assets/screens/mobile-orders-light.png';
+import logo from '../assets/logo.svg?raw';
+import '@fontsource-variable/inter';
+import '@fontsource-variable/jetbrains-mono';
+import '../styles/landing.css';
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const site = 'https://melihmuratpesmen.github.io';
+const repo = 'https://github.com/melihmuratpesmen/expo-modern-table';
+const npm = 'https://www.npmjs.com/package/expo-modern-table';
+const docs = `${base}/getting-started/introduction/`;
+const demo = `${base}/demo/`;
+const install = 'npx expo install expo-modern-table';
+const title = 'expo-modern-table — data tables for Expo & React Native';
+const description =
+  'A complete data table for Expo and React Native: sticky columns, sorting, filters, server-side data, selection, inline editing and more. Built on FlashList. iOS, Android and web.';
+
+const quickStart = `import { ModernTable, useTable, type Column } from 'expo-modern-table';
+
+const columns: Column<Order>[] = [
+  { key: 'id', title: 'Order', width: 100, isSticky: true },
+  { key: 'customer', title: 'Customer', width: 200 },
+  { key: 'status', title: 'Status', filterConfig: { type: 'text' } },
+  { key: 'total', title: 'Total', align: 'right', footer: 'sum' },
+];
+
+export function Orders({ orders }: { orders: Order[] }) {
+  const table = useTable(orders, columns, 20);
+  return <ModernTable columns={columns} {...table.getTableProps()} />;
+}`;
+
+const serverSide = `const table = useTable(page.rows, columns, {
+  manual: true, // your API sorts, filters, paginates
+  rowCount: page.total,
+});
+
+// { searchQuery, sort, filters, page, pageSize }
+const query = useQuery({
+  queryKey: ['orders', table.state],
+  queryFn: () => fetchOrders(table.state),
+});`;
+
+const features = [
+  {
+    icon: Pin,
+    title: 'Sticky columns',
+    text: 'Pin key columns while the rest scrolls sideways. Users pin and unpin from the column menu.',
+  },
+  {
+    icon: Filter,
+    title: 'Sort, filter, search',
+    text: 'Locale-aware sorting, text / select / boolean / range filters and an accent-insensitive global search.',
+  },
+  {
+    icon: Server,
+    title: 'Server-side mode',
+    text: 'One flag hands sorting, filtering and paging to your API — with debounced search and a stable state object.',
+  },
+  {
+    icon: ListChecks,
+    title: 'Selection & bulk actions',
+    text: 'Checkboxes, select-all across pages or filters, and a contextual toolbar for your actions.',
+  },
+  {
+    icon: MoveHorizontal,
+    title: 'Resize & reorder',
+    text: 'Drag header edges to resize, long-press to reorder columns, drag handles to reorder rows.',
+  },
+  {
+    icon: Pencil,
+    title: 'Inline editing',
+    text: 'Tap a cell to edit it in place. Numbers stay numbers, and a comma works as the decimal separator.',
+  },
+  {
+    icon: Rows3,
+    title: 'Expandable rows',
+    text: 'Show details under any row — line items, profiles, charts — pinned while the columns scroll.',
+  },
+  {
+    icon: Sigma,
+    title: 'Summary row',
+    text: 'Sum, average, min, max, count or any custom content, over every row that matches the filters.',
+  },
+  {
+    icon: Languages,
+    title: 'Themes & translations',
+    text: 'Light and dark themes, brand tokens, custom fonts and icons, and every string translatable.',
+  },
+];
+
+const comparison = [
+  ['Ready-made, themed UI', 'yes', 'yes', 'no'],
+  ['Virtualized rows (FlashList)', 'yes', 'no', 'diy'],
+  ['Sticky / pinned columns', 'yes', 'no', 'logic'],
+  ['Sorting, filters & search', 'yes', 'partial', 'logic'],
+  ['Server-side mode', 'yes', 'diy', 'yes'],
+  ['Column resize & reorder', 'yes', 'no', 'logic'],
+  ['Inline edit & row reorder', 'yes', 'no', 'diy'],
+  ['Summary row, expandable rows', 'yes', 'no', 'logic'],
+];
+const cell = {
+  yes: { label: 'Built in', cls: 'yes' },
+  partial: { label: 'Partial', cls: 'partial' },
+  logic: { label: 'Logic only', cls: 'partial' },
+  diy: { label: 'Build it', cls: 'no' },
+  no: { label: '—', cls: 'no' },
+} as const;
+
+const shots = [
+  { id: 'orders', label: 'Orders', note: 'Server-side · bulk actions · expandable rows', image: ordersLight },
+  { id: 'filters', label: 'Filters', note: 'Column filters with a native dialog', image: ordersFilter },
+  { id: 'team', label: 'Team', note: 'Grouping · inline edit · dark theme', image: teamDark },
+  { id: 'markets', label: 'Markets', note: 'Live updates · sparklines · summary row', image: marketsDark },
+];
+
+const faqs = [
+  {
+    q: 'Does it work in Expo Go?',
+    a: 'Yes. There is no custom native code — FlashList, Gesture Handler, Reanimated and SVG all ship with Expo Go.',
+  },
+  {
+    q: 'Can I use it without Expo?',
+    a: 'Yes. It works in bare React Native apps: install the peer dependencies and add the Reanimated Babel plugin. Expo-only features (fullscreen) are opt-in and injected as props.',
+  },
+  {
+    q: 'How much data can it handle?',
+    a: 'Rows are virtualized with FlashList and search uses a prebuilt index, so thousands of rows on the device are fine. For bigger data sets, switch on server-side mode — the demo pages through 25,000 orders.',
+  },
+  {
+    q: 'Will it match my design?',
+    a: 'Theme tokens, custom fonts, replaceable icons, custom cells and headers, row styles and full translations let it blend into your app.',
+  },
+  {
+    q: 'Is it free?',
+    a: 'Yes — MIT licensed, for commercial and personal projects.',
+  },
+];
+---
+
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="icon" href={`${base}/favicon.svg`} type="image/svg+xml" />
+    <link rel="canonical" href={`${site}${base}/`} />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={`${site}${base}/`} />
+    <meta property="og:image" content={`${site}${base}/og.png`} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content={`${site}${base}/og.png`} />
+    <meta name="theme-color" content="#4F46E5" />
+    <script is:inline>
+      // Same storage key as the Starlight docs, so the choice carries over.
+      (() => {
+        let stored = '';
+        try {
+          stored = localStorage.getItem('starlight-theme') || '';
+        } catch {}
+        const dark = stored ? stored === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+        document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+      })();
+    </script>
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+
+    <header class="nav">
+      <div class="wrap nav-inner">
+        <a class="brand" href={`${base}/`} aria-label="expo-modern-table home">
+          <span class="brand-mark" set:html={logo} />
+          <span class="brand-name">expo-modern-table</span>
+        </a>
+        <nav class="nav-links" aria-label="Main">
+          <a href={docs}>Docs</a>
+          <a href={demo}>Demo</a>
+          <a href={`${base}/comparison/`}>Compare</a>
+          <a href={`${base}/recipes/tanstack-query/`}>Recipes</a>
+        </nav>
+        <div class="nav-actions">
+          <button class="icon-btn" id="theme-toggle" type="button" aria-label="Toggle dark mode">
+            <span class="when-light" set:html={Moon} />
+            <span class="when-dark" set:html={Sun} />
+          </button>
+          <a class="icon-btn" href={repo} aria-label="GitHub repository"><span set:html={Github} /></a>
+        </div>
+      </div>
+    </header>
+
+    <main id="main">
+      <!-- HERO -->
+      <section class="hero">
+        <div class="hero-grid" aria-hidden="true"></div>
+        <div class="wrap hero-inner">
+          <div class="hero-copy">
+            <a class="pill" href={`${repo}/blob/main/CHANGELOG.md`}>
+              <span class="pill-tag">v{pkg.version}</span>
+              Summary rows, expandable rows, server-side mode
+              <span class="pill-arrow" set:html={ArrowRight} />
+            </a>
+            <h1>
+              Serious data tables,<br />
+              <span class="gradient-text">built for mobile.</span>
+            </h1>
+            <p class="lead">
+              A complete data grid for <strong>Expo</strong> and <strong>React Native</strong> —
+              pinned columns, sorting, filters, server-side paging, selection and inline editing —
+              that feels native on iOS, Android and the web.
+            </p>
+            <div class="cta-row">
+              <a class="btn btn-primary" href={demo}>
+                Try the live demo <span set:html={ArrowRight} />
+              </a>
+              <a class="btn btn-ghost" href={docs}>Read the docs</a>
+            </div>
+            <div class="install">
+              <code><span class="prompt">$</span> {install}</code>
+              <button class="copy" type="button" data-copy={install} aria-label="Copy install command">
+                <span class="copy-icon" set:html={Copy} />
+                <span class="copied-icon" set:html={Check} />
+              </button>
+            </div>
+            <ul class="badges" aria-label="Highlights">
+              <li><span set:html={Smartphone} /> iOS & Android</li>
+              <li><span set:html={Globe} /> Web</li>
+              <li><span set:html={Check} /> Expo Go ready</li>
+              <li><span set:html={Check} /> TypeScript</li>
+              <li><span set:html={Check} /> MIT</li>
+            </ul>
+          </div>
+
+          <div class="hero-device">
+            <div class="phone" style={`--poster: url(${phonePoster.src})`}>
+              <div class="phone-status" aria-hidden="true">
+                <span>9:41</span>
+                <span class="phone-notch"></span>
+                <span class="phone-icons"><i></i><i></i><i></i></span>
+              </div>
+              <iframe
+                id="demo-frame"
+                title="expo-modern-table live demo"
+                data-src={`${demo}?embed=1&scenario=orders`}
+                loading="eager"></iframe>
+            </div>
+            <p class="device-caption">
+              <span class="live-dot" aria-hidden="true"></span>
+              The real component, running in your browser — tap around.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- FEATURES -->
+      <section class="section" id="features">
+        <div class="wrap">
+          <p class="eyebrow">Everything a real table needs</p>
+          <h2>Stop rebuilding the same table.</h2>
+          <p class="section-lead">
+            The features users expect from a spreadsheet, designed for thumbs and small screens —
+            and each one is a prop away.
+          </p>
+          <div class="feature-grid">
+            {
+              features.map(f => (
+                <article class="feature">
+                  <span class="feature-icon" set:html={f.icon} />
+                  <h3>{f.title}</h3>
+                  <p>{f.text}</p>
+                </article>
+              ))
+            }
+          </div>
+        </div>
+      </section>
+
+      <!-- CODE -->
+      <section class="section section-alt">
+        <div class="wrap split">
+          <div>
+            <p class="eyebrow">Quick start</p>
+            <h2>One hook. One component.</h2>
+            <p class="section-lead">
+              <code>useTable</code> owns search, sorting, filters, pagination and selection.
+              <code>ModernTable</code> renders it. Spread one into the other and you're done.
+            </p>
+            <ul class="checks">
+              <li><span set:html={Check} /> Search across every column, out of the box</li>
+              <li><span set:html={Check} /> Tap headers to sort, open filters from the header</li>
+              <li><span set:html={Check} /> Pinned first column, horizontal scrolling</li>
+              <li><span set:html={Check} /> Pagination, density, column menu and a totals row</li>
+            </ul>
+            <a class="text-link" href={`${base}/getting-started/quick-start/`}>
+              Quick start guide <span set:html={ArrowRight} />
+            </a>
+          </div>
+          <div class="code-card">
+            <div class="code-head"><span></span><span></span><span></span><em>Orders.tsx</em></div>
+            <Code code={quickStart} lang="tsx" theme="github-dark-default" />
+          </div>
+        </div>
+      </section>
+
+      <!-- GALLERY -->
+      <section class="section" id="showcase">
+        <div class="wrap">
+          <p class="eyebrow">See it in action</p>
+          <h2>Real screens, not mockups.</h2>
+          <p class="section-lead">
+            Every screenshot comes from the open-source example app — the same one you can open in
+            Expo Go or in the browser.
+          </p>
+          <div class="tabs" role="tablist" aria-label="Screenshots">
+            {
+              shots.map((s, i) => (
+                <button
+                  class="tab"
+                  role="tab"
+                  id={`tab-${s.id}`}
+                  aria-controls={`panel-${s.id}`}
+                  aria-selected={i === 0 ? 'true' : 'false'}
+                  type="button">
+                  {s.label}
+                </button>
+              ))
+            }
+          </div>
+          <div class="browser">
+            <div class="browser-bar">
+              <span></span><span></span><span></span>
+              <div class="browser-url">melihmuratpesmen.github.io/expo-modern-table/demo</div>
+            </div>
+            {
+              shots.map((s, i) => (
+                <figure
+                  class="shot"
+                  role="tabpanel"
+                  id={`panel-${s.id}`}
+                  aria-labelledby={`tab-${s.id}`}
+                  hidden={i !== 0}>
+                  <Image
+                    src={s.image}
+                    alt={`${s.label} scenario of the expo-modern-table demo: ${s.note}`}
+                    widths={[640, 1280, 2560]}
+                    sizes="(max-width: 1180px) 100vw, 1120px"
+                    loading={i === 0 ? 'eager' : 'lazy'}
+                  />
+                  <figcaption>{s.note}</figcaption>
+                </figure>
+              ))
+            }
+          </div>
+          <div class="center">
+            <a class="btn btn-primary" href={demo}>
+              Open the interactive demo <span set:html={ArrowRight} />
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <!-- SERVER SIDE -->
+      <section class="section section-alt">
+        <div class="wrap split split-reverse">
+          <div class="code-card">
+            <div class="code-head"><span></span><span></span><span></span><em>Server-side</em></div>
+            <Code code={serverSide} lang="tsx" theme="github-dark-default" />
+            <div class="request-log">
+              <span class="live-dot" aria-hidden="true"></span>
+              <code>GET /orders?page=3&amp;size=20&amp;q=lena&amp;sort=total.desc</code>
+              <em>312 ms</em>
+            </div>
+          </div>
+          <div>
+            <p class="eyebrow">Server-side data</p>
+            <h2>A million rows? Flip one flag.</h2>
+            <p class="section-lead">
+              With <code>manual: true</code> the table only keeps state — your API (REST, GraphQL,
+              Supabase…) does the heavy lifting. Search is debounced, the state object is a ready
+              query key, and loading, error and empty states are built in.
+            </p>
+            <a class="text-link" href={`${base}/guides/server-side/`}>
+              Server-side guide <span set:html={ArrowRight} />
+            </a>
+            <a class="text-link" href={`${base}/recipes/supabase/`}>
+              Supabase recipe <span set:html={ArrowRight} />
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <!-- COMPARISON -->
+      <section class="section">
+        <div class="wrap">
+          <p class="eyebrow">How it compares</p>
+          <h2>Finished UI, with the logic built in.</h2>
+          <p class="section-lead">
+            Paper's DataTable gives you the building blocks; TanStack Table gives you headless
+            logic. expo-modern-table gives you the whole table.
+          </p>
+          <div class="compare-wrap">
+            <table class="compare">
+              <thead>
+                <tr>
+                  <th scope="col"></th>
+                  <th scope="col" class="us">expo-modern-table</th>
+                  <th scope="col">Paper DataTable</th>
+                  <th scope="col">TanStack Table</th>
+                </tr>
+              </thead>
+              <tbody>
+                {
+                  comparison.map(([feature, ...values]) => (
+                    <tr>
+                      <th scope="row">{feature}</th>
+                      {values.map((v, i) => {
+                        const c = cell[v as keyof typeof cell];
+                        return (
+                          <td class={i === 0 ? 'us' : undefined}>
+                            <span class={`mark ${c.cls}`}>{c.label}</span>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))
+                }
+              </tbody>
+            </table>
+          </div>
+          <p class="fine">
+            Checked against each project's documentation in October 2026. Paper and TanStack are
+            great at what they do — the <a href={`${base}/comparison/`}>full comparison</a> says
+            when to pick them.
+          </p>
+        </div>
+      </section>
+
+      <!-- STACK + FAQ -->
+      <section class="section section-alt">
+        <div class="wrap split split-top">
+          <div>
+            <p class="eyebrow">Built on proven pieces</p>
+            <h2>No custom native code.</h2>
+            <p class="section-lead">
+              expo-modern-table stands on the libraries your app most likely already has, so it
+              runs in Expo Go, in bare React Native and on the web.
+            </p>
+            <ul class="stack">
+              <li><strong>FlashList</strong><span>Recycled, virtualized rows</span></li>
+              <li><strong>Reanimated</strong><span>Smooth drag & resize</span></li>
+              <li><strong>Gesture Handler</strong><span>Native gestures</span></li>
+              <li><strong>react-native-web</strong><span>The same table in the browser</span></li>
+              <li><strong>TypeScript</strong><span>Typed columns, rows and state</span></li>
+              <li><strong>Accessible</strong><span>Roles, states and labels</span></li>
+            </ul>
+          </div>
+          <div class="faq">
+            <h2 class="faq-title">Questions</h2>
+            {
+              faqs.map(f => (
+                <details>
+                  <summary>{f.q}</summary>
+                  <p>{f.a}</p>
+                </details>
+              ))
+            }
+          </div>
+        </div>
+      </section>
+
+      <!-- FINAL CTA -->
+      <section class="final">
+        <div class="wrap final-inner">
+          <span class="final-mark" set:html={logo} />
+          <h2>Ship your next table today.</h2>
+          <p>Install it, spread one hook into one component, and get back to your product.</p>
+          <div class="install install-center">
+            <code><span class="prompt">$</span> {install}</code>
+            <button class="copy" type="button" data-copy={install} aria-label="Copy install command">
+              <span class="copy-icon" set:html={Copy} />
+              <span class="copied-icon" set:html={Check} />
+            </button>
+          </div>
+          <div class="cta-row cta-center">
+            <a class="btn btn-light" href={docs}>Get started <span set:html={ArrowRight} /></a>
+            <a class="btn btn-outline-light" href={repo}><span set:html={Github} /> Star on GitHub</a>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="wrap footer-inner">
+        <a class="brand" href={`${base}/`}>
+          <span class="brand-mark" set:html={logo} />
+          <span class="brand-name">expo-modern-table</span>
+        </a>
+        <nav aria-label="Footer">
+          <a href={docs}>Docs</a>
+          <a href={demo}>Demo</a>
+          <a href={`${base}/reference/modern-table/`}>API</a>
+          <a href={`${repo}/blob/main/CHANGELOG.md`}>Changelog</a>
+          <a href={repo}>GitHub</a>
+          <a href={npm}>npm</a>
+        </nav>
+        <p>MIT License · Made by <a href="https://github.com/melihmuratpesmen">Melih Murat Peşmen</a></p>
+      </div>
+    </footer>
+
+    <script>
+      // Theme toggle (shares Starlight's storage key).
+      document.getElementById('theme-toggle')?.addEventListener('click', () => {
+        const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+        document.documentElement.dataset.theme = next;
+        try {
+          localStorage.setItem('starlight-theme', next);
+        } catch {}
+      });
+
+      // Load the embedded demo in the current theme.
+      const frame = document.getElementById('demo-frame') as HTMLIFrameElement | null;
+      if (frame?.dataset.src) {
+        frame.src = `${frame.dataset.src}&theme=${document.documentElement.dataset.theme}`;
+        frame.addEventListener('load', () => frame.classList.add('loaded'));
+      }
+
+      // Copy buttons.
+      document.querySelectorAll<HTMLButtonElement>('[data-copy]').forEach(button => {
+        button.addEventListener('click', async () => {
+          try {
+            await navigator.clipboard.writeText(button.dataset.copy ?? '');
+            button.classList.add('done');
+            setTimeout(() => button.classList.remove('done'), 1500);
+          } catch {}
+        });
+      });
+
+      // Screenshot tabs.
+      const tabs = [...document.querySelectorAll<HTMLButtonElement>('.tab')];
+      const select = (tab: HTMLButtonElement) => {
+        for (const t of tabs) {
+          const selected = t === tab;
+          t.setAttribute('aria-selected', String(selected));
+          t.tabIndex = selected ? 0 : -1;
+          const panel = document.getElementById(t.getAttribute('aria-controls') ?? '');
+          if (panel) panel.hidden = !selected;
+        }
+      };
+      tabs.forEach((tab, index) => {
+        tab.tabIndex = index === 0 ? 0 : -1;
+        tab.addEventListener('click', () => select(tab));
+        tab.addEventListener('keydown', event => {
+          const delta = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0;
+          if (!delta) return;
+          const next = tabs[(index + delta + tabs.length) % tabs.length];
+          select(next);
+          next.focus();
+        });
+      });
+    </script>
+  </body>
+</html>

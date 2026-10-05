@@ -1,0 +1,99 @@
+---
+title: Theming
+description: Light and dark themes, token overrides, custom fonts and replaceable icons.
+sidebar:
+  order: 10
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+## Light and dark
+
+```tsx
+import { useColorScheme } from 'react-native';
+
+const scheme = useColorScheme();
+
+<ModernTable columns={columns} {...table.getTableProps()} theme={scheme === 'dark' ? 'dark' : 'light'} />;
+```
+
+`theme` also accepts a complete `TableTheme` object.
+
+## Overriding tokens
+
+`themeConfig` merges into the chosen theme. Match your brand with a few tokens:
+
+```tsx
+const brand = { primary: '#0EA5E9', primaryLight: '#E0F2FE', rowSelected: '#F0F9FF' };
+
+<ModernTable columns={columns} {...table.getTableProps()} themeConfig={brand} />;
+```
+
+<Aside type="caution">
+  Define `themeConfig` outside the component or memoize it — a new object on every render
+  rebuilds the styles.
+</Aside>
+
+| Token | Used for |
+| --- | --- |
+| `background`, `surface`, `surfaceHighlight` | Table, toolbar and inputs, expanded rows |
+| `headerBackground`, `headerText` | Header row and summary row |
+| `rowEven`, `rowOdd`, `rowSelected`, `rowHover` | Row backgrounds |
+| `border` | Grid lines and outlines |
+| `text`, `textSecondary`, `textInverse` | Text |
+| `primary`, `primaryLight`, `accent` | Active controls, checkboxes, sort / filter state |
+| `success`, `error`, `warning`, `info` | Status colors |
+| `markedBackground`, `markedHeaderBackground` | Columns with `isMarked` |
+| `overlay` | Filter dialog backdrop |
+| `fontFamily` | `{ regular, medium, semibold, bold }` |
+
+The full default values are exported as `lightTheme` and `darkTheme`.
+
+## Custom fonts
+
+Load the fonts in your app (e.g. with `expo-font` or `@expo-google-fonts/*`), then pass their
+names:
+
+```tsx
+const themeConfig = {
+  fontFamily: {
+    regular: 'Inter_400Regular',
+    medium: 'Inter_500Medium',
+    semibold: 'Inter_600SemiBold',
+    bold: 'Inter_700Bold',
+  },
+};
+```
+
+## Icons
+
+The built-in icons come from `lucide-react-native`. Replace any of them with the `icons` prop —
+anything that accepts `size` and `color` works (lucide, `@expo/vector-icons` wrappers, your own
+SVG components):
+
+```tsx
+import { Ionicons } from '@expo/vector-icons';
+
+const SearchIcon = ({ size, color }: { size?: number; color?: string }) => (
+  <Ionicons name="search" size={size} color={color} />
+);
+
+<ModernTable columns={columns} {...table.getTableProps()} icons={{ search: SearchIcon }} />;
+```
+
+Slots: `sortAsc`, `sortDesc`, `filter`, `search`, `columns`, `pin`, `fullscreen`,
+`exitFullscreen`, `density`, `selectMode`, `reorderMode`, `dragHandle`, `reorderHeader`,
+`close`, `check`, `indeterminate`, `previousPage`, `nextPage`, `expand`, `collapse`.
+The defaults are exported as `defaultIcons`.
+
+## Styles
+
+For layout tweaks there are style props: `containerStyle` (the outer card), `headerStyle`,
+`rowStyle` and `getRowStyle(row, index)`, plus `style` / `headerStyle` per column.
+
+```tsx
+<ModernTable
+  /* … */
+  containerStyle={{ borderRadius: 0, borderWidth: 0, shadowOpacity: 0 }}
+/>
+```

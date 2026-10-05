@@ -1,0 +1,118 @@
+---
+title: Server-side data
+description: Let your API search, sort, filter and paginate — useTable only manages the state.
+sidebar:
+  order: 4
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+With `manual: true`, `useTable` stops processing rows. `data` is the page your API returned,
+already sorted and filtered, and the hook only keeps the state: search text, sort, filters, page
+and page size. Read it from `table.state` and fetch whenever it changes.
+
+```tsx
+const [result, setResult] = useState<{ rows: Order[]; total: number }>({ rows: [], total: 0 });
+const [loading, setLoading] = useState(false);
+const [error, setError] = useState<string>();
+
+const table = useTable(result.rows, columns, {
+  manual: true,
+  rowCount: result.total, // enables the page count
+  pageSize: 20,
+});
+
+useEffect(() => {
+  let cancelled = false;
+  setLoading(true);
+  setError(undefined);
+  fetchOrders(table.state) // { searchQuery, sort, filters, page, pageSize }
+    .then(res => !cancelled && setResult(res))
+    .catch(e => !cancelled && setError(String(e)))
+    .finally(() => !cancelled && setLoading(false));
+  return () => {
+    cancelled = true;
+  };
+}, [table.state]);
+
+return (
+  <ModernTable
+    columns={columns}
+    {...table.getTableProps()}
+    isLoading={loading}
+    error={error}
+    onRetry={() => setError(undefined)}
+  />
+);
+```
+
+`table.state` keeps its identity until something changes, so it is safe as an effect dependency
+or a query key. For a ready-made version with caching, see the
+[TanStack Query recipe](/expo-modern-table/recipes/tanstack-query/) or [Supabase](/expo-modern-table/recipes/supabase/).
+
+## What changes in manual mode
+
+- **Search is debounced** — 300 ms by default (`searchDebounceMs`), so your API isn't called on
+  every keystroke. Changing the search, a filter or the page size goes back to page 1.
+- **Pagination** uses `rowCount`. Without it, "next" stays enabled while the API returns full
+  pages — handy when counting is expensive.
+- **Select all** covers the rows on the current page.
+- **The summary row** only sees the current page. Show totals from your API with a function
+  footer instead (see [Summary row](/expo-modern-table/guides/summary-row/#server-side-totals)).
+- **CSV export** (`getCsv`) exports what is on the device — fetch everything from the server
+  for a full export.
+
+## Mapping state to a request
+
+`state.sort` is `{ key, direction }` where `direction` is `'asc'`, `'desc'` or `null`.
+`state.filters` maps column keys to values: a string (text / select), a boolean, or
+`{ min?, max? }` for ranges.
+
+```ts
+function toQuery(state: TableState) {
+  const params = new URLSearchParams({
+    page: String(state.page),
+    limit: String(state.pageSize),
+  });
+  if (state.searchQuery) params.set('q', state.searchQuery);
+  if (state.sort.key && state.sort.direction) {
+    params.set('sort', `${state.sort.key}:${state.sort.direction}`);
+  }
+  for (const [key, value] of Object.entries(state.filters)) {
+    if (typeof value === 'object') {
+      if (value.min != null) params.set(`${key}_gte`, String(value.min));
+      if (value.max != null) params.set(`${key}_lte`, String(value.max));
+    } else if (value !== undefined) {
+      params.set(key, String(value));
+    }
+  }
+  return params;
+}
+```
+
+<Aside type="tip" title="Same logic on the server">
+  The helpers `useTable` uses on the device — `searchRows`, `filterRows`, `sortRows`,
+  `paginateRows` — are plain functions with no React Native imports. You can run them in a
+  Node API or a mock server so both sides agree. The [live demo](/expo-modern-table/demo/?scenario=orders)
+  does exactly that with 25,000 orders.
+</Aside>
+
+## Infinite scroll
+
+For a feed instead of pages, hide the pagination bar and load more at the end of the list:
+
+```tsx
+const table = useTable(rows, columns, { manual: true, pagination: false });
+
+<ModernTable
+  columns={columns}
+  {...table.getTableProps()}
+  onEndReached={loadNextPage}
+  onEndReachedThreshold={0.5}
+  isLoadingMore={isFetchingNextPage}
+  refreshing={isRefreshing}
+  onRefresh={refresh}
+/>;
+```
+
+Reset your accumulated rows when `table.state` changes (a new search or sort starts a new list).

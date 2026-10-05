@@ -1,0 +1,90 @@
+---
+title: TanStack Query
+description: Server-side pagination, sorting and filtering with @tanstack/react-query and manual mode.
+sidebar:
+  order: 1
+---
+
+`table.state` is a stable object that changes only when search, sort, filters, page or page
+size change — which makes it a perfect query key.
+
+```tsx title="OrdersScreen.tsx"
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { ModernTable, useTable, type Column, type TableState } from 'expo-modern-table';
+
+type Order = { id: string; customer: string; status: string; total: number; createdAt: string };
+type OrdersPage = { rows: Order[]; total: number };
+
+async function fetchOrders(state: TableState): Promise<OrdersPage> {
+  const params = new URLSearchParams({ page: String(state.page), limit: String(state.pageSize) });
+  if (state.searchQuery) params.set('q', state.searchQuery);
+  if (state.sort.key && state.sort.direction) params.set('sort', `${state.sort.key}:${state.sort.direction}`);
+  if (typeof state.filters.status === 'string') params.set('status', state.filters.status);
+
+  const res = await fetch(`https://api.example.com/orders?${params}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+const columns: Column<Order>[] = [
+  { key: 'id', title: 'Order', width: 110, isSticky: true },
+  { key: 'customer', title: 'Customer', width: 200 },
+  {
+    key: 'status',
+    title: 'Status',
+    width: 120,
+    filterConfig: { type: 'select', options: ['paid', 'pending', 'refunded'] },
+  },
+  { key: 'total', title: 'Total', width: 110, align: 'right' },
+];
+
+export function OrdersScreen() {
+  const [page, setPage] = useState<OrdersPage>({ rows: [], total: 0 });
+
+  const table = useTable(page.rows, columns, {
+    manual: true,
+    rowCount: page.total,
+    pageSize: 25,
+  });
+
+  const query = useQuery({
+    queryKey: ['orders', table.state],
+    queryFn: () => fetchOrders(table.state),
+    placeholderData: keepPreviousData, // keep showing the old page while the next one loads
+  });
+
+  // Feed the response back into the table.
+  if (query.data && query.data !== page) setPage(query.data);
+
+  return (
+    <ModernTable
+      columns={columns}
+      {...table.getTableProps()}
+      isLoading={query.isFetching}
+      error={query.isError ? 'Could not load orders.' : undefined}
+      onRetry={() => query.refetch()}
+      refreshing={query.isRefetching && !query.isPlaceholderData}
+      onRefresh={() => query.refetch()}
+    />
+  );
+}
+```
+
+Why the `setPage` step? `useTable` needs the rows before the query can read `table.state`, so
+the response is stored in state and handed to the hook on the next render. Updating state
+during render like this is a supported React pattern and doesn't loop: it only runs when a new
+response object arrives.
+
+## Notes
+
+- **Search is debounced** (300 ms) before it reaches `table.state`, so typing doesn't create a
+  query per keystroke. Tune it with `searchDebounceMs`.
+- `keepPreviousData` keeps the old rows on screen while the next page loads; `isLoading`
+  dims them and shows a spinner.
+- **Totals for the summary row** can come from the same response — see
+  [Summary row → Server-side totals](/expo-modern-table/guides/summary-row/#server-side-totals).
+- **Mutations**: after an `useMutation` succeeds, `queryClient.invalidateQueries({ queryKey: ['orders'] })`
+  refetches the current page.
+- **Infinite scroll**: use `useInfiniteQuery` with `pagination: false`, flatten
+  `data.pages` into the table's `data`, and wire `onEndReached={() => query.fetchNextPage()}`
+  and `isLoadingMore={query.isFetchingNextPage}`.

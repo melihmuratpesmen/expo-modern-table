@@ -1,0 +1,110 @@
+---
+title: useTable
+description: The state hook behind ModernTable — options, what it returns, and how state ownership works.
+sidebar:
+  order: 1
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+`useTable(data, columns, options?)` keeps the table's state and derives what to show. Spread
+`getTableProps()` onto `ModernTable` and the two stay in sync.
+
+```tsx
+const table = useTable(data, columns, {
+  pageSize: 20,
+  pageSizeOptions: [20, 50, 100],
+  initialState: { sort: { key: 'total', direction: 'desc' } },
+});
+
+return <ModernTable columns={columns} {...table.getTableProps()} />;
+```
+
+The third argument can also be just the page size: `useTable(data, columns, 20)`.
+
+<Aside type="caution" title="Keep inputs stable">
+  Define `columns` outside the component or wrap them in `useMemo`, and do the same for
+  `getRowId`. A new array or function on every render re-renders every row.
+</Aside>
+
+## Options
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `pageSize` | `10` | Rows per page. |
+| `pageSizeOptions` | `[10, 20, 50]` | Choices in the page-size picker. |
+| `pagination` | `true` | `false` hides the pagination bar (e.g. for infinite scroll) and shows every row. |
+| `initialState` | — | Starting `searchQuery`, `sort`, `filters`, `page` and `pageSize`. |
+| `initialDensity` | `'standard'` | `'compact'`, `'standard'` or `'comfortable'`. |
+| `enableSelection` | `true` | Show row checkboxes. |
+| `selectAllScope` | `'page'` | What the header checkbox selects: the current `'page'` or every `'filtered'` row. |
+| `getRowId` | `row => row.id` | Row identity; required by the types when rows have no `id`. |
+| `locale` | device locale | Collation for sorting text, e.g. `'tr'` or `['de', 'en']`. |
+| `manual` | `false` | [Server-side mode](/expo-modern-table/guides/server-side/): `data` is already the current page. |
+| `rowCount` | — | Manual mode: total matching rows, for the page count. |
+| `searchDebounceMs` | `300` manual · `0` otherwise | Delay before search reaches `state`. |
+| `onStateChange` | — | Called with `state` on mount and whenever it changes. |
+| `initialPreferences` | — | Restore saved [layout preferences](/expo-modern-table/guides/persistence/). |
+| `onPreferencesChange` | — | Called whenever preferences change — persist them here. |
+
+## What it returns
+
+**The data pipeline**
+
+| Field | Description |
+| --- | --- |
+| `filteredData` | Rows matching search and filters. |
+| `sortedData` | `filteredData`, sorted. |
+| `paginatedData` | The rows on the current page — what the table renders. |
+| `currentPage`, `totalPages`, `setCurrentPage` | Pagination. Pages are 1-based. |
+| `state` | `{ searchQuery, sort, filters, page, pageSize }` — what a server needs. |
+
+In manual mode all three data arrays are simply `data`.
+
+**State and setters**
+
+| Field | Description |
+| --- | --- |
+| `searchQuery`, `setSearchQuery` | Global search text. |
+| `sortConfig`, `handleSort(key, direction?)` | Current sort; without `direction` it cycles asc → desc → off. |
+| `filters`, `setColumnFilter(key, value)` | Column filter values. |
+| `selectedIds`, `toggleSelection`, `toggleAllSelection`, `clearSelection` | Selection. |
+| `isAllSelected`, `isSomeSelected` | Header checkbox state for the select-all scope. |
+| `density`, `setDensity` | Row height. |
+| `itemsPerPage`, `setItemsPerPage` | Page size. |
+| `visibleColumns`, `toggleColumnVisibility` | Column keys that are shown. |
+| `stickyColumns`, `toggleStickyColumn` | Column keys that are pinned. |
+| `columnOrder`, `setColumnOrder` | Column keys in display order. |
+| `columnWidths`, `setColumnWidth` | Widths set by resizing. |
+| `preferences`, `setPreferences` | The [persistable layout](/expo-modern-table/guides/persistence/). |
+| `getCsv(options?)` | [CSV export](/expo-modern-table/recipes/csv-export/) of the visible columns. |
+| `getTableProps()` | Everything above, shaped as `ModernTable` props. |
+
+You can drive the table from your own UI with these — for example a "Clear filters" button or a
+segmented control that sets the sort.
+
+```tsx
+<Button title="Newest first" onPress={() => table.handleSort('date', 'desc')} />
+```
+
+## Who owns which state
+
+| Concern | Owner |
+| --- | --- |
+| Search, sort, filters, selection, density, visible / pinned columns, column order and widths, pagination | `useTable` — or your own props, if you don't use the hook |
+| `selectionMode`, `expandedIds`, and `columnOrder` / `columnWidths` without `useTable` | Semi-controlled: pass the prop to control it, otherwise the table keeps it |
+| The cell being edited, the open filter dialog | Always internal to `ModernTable` |
+
+If you override `onColumnReorder` or `onColumnResize` after spreading `getTableProps()`, call
+`table.setColumnOrder` / `table.setColumnWidth` from your handler (or listen to
+`onPreferencesChange` instead).
+
+## Without the hook
+
+`ModernTable` is fully controlled, so you can also wire it to your own state — Redux, Zustand,
+URL params. Pass `data` already sorted, filtered and paginated, plus the handlers for the
+controls you want (`onSearchChange`, `onSort`, `onFilterChange`, `pagination`, …). Each toolbar
+control appears only when its handler is provided.
+
+The data helpers `useTable` uses are exported too: `sortRows`, `filterRows`, `searchRows`,
+`buildSearchIndex`, `paginateRows` and `getTotalPages` — see [Helpers](/expo-modern-table/reference/helpers/).

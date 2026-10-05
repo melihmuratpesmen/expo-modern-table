@@ -1,0 +1,118 @@
+---
+title: Quick start
+description: Render your first table with search, sorting, filters and pagination in a few lines.
+sidebar:
+  order: 3
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+`expo-modern-table` has two parts:
+
+- **`ModernTable`** — the component. It is presentational: it renders what it's given and
+  reports user actions through callbacks.
+- **`useTable`** — a hook that owns the state (search, sort, filters, page, selection, column
+  layout) and hands it to the table through `getTableProps()`.
+
+## Your first table
+
+```tsx title="OrdersTable.tsx"
+import { ModernTable, useTable, type Column } from 'expo-modern-table';
+
+type Order = {
+  id: string;
+  customer: string;
+  status: 'paid' | 'pending' | 'refunded';
+  total: number;
+};
+
+// Define columns outside the component (or memoize them).
+const columns: Column<Order>[] = [
+  { key: 'id', title: 'Order', width: 100, isSticky: true },
+  { key: 'customer', title: 'Customer', width: 180 },
+  {
+    key: 'status',
+    title: 'Status',
+    width: 120,
+    filterConfig: { type: 'select', options: ['paid', 'pending', 'refunded'] },
+  },
+  { key: 'total', title: 'Total', width: 110, align: 'right', footer: 'sum' },
+];
+
+export function OrdersTable({ orders }: { orders: Order[] }) {
+  const table = useTable(orders, columns, 20); // 20 rows per page
+
+  return <ModernTable columns={columns} {...table.getTableProps()} />;
+}
+```
+
+This already gives you:
+
+- a **search** field in the toolbar (it searches every column),
+- **sorting** by tapping a header (ascending → descending → off),
+- a **filter** button on the Status header,
+- a pinned **Order** column while the rest scrolls horizontally,
+- **checkbox selection**, **pagination** with a page-size picker, a **density** toggle and a
+  **column menu** to show, hide and pin columns,
+- a **summary row** with the sum of `total` over every row matching the filters.
+
+<Aside>
+  Give the table a bounded height — it fills its parent like a list. Inside a `ScrollView`, set
+  an explicit height, or render it in a screen with `flex: 1`.
+</Aside>
+
+## Rows need an identity
+
+Rows with an `id` field work out of the box. Otherwise pass `getRowId` — TypeScript requires it
+when your row type has no `id`:
+
+```tsx
+const getRowId = (row: Product) => row.sku; // stable function, outside the component
+
+const table = useTable(products, columns, { pageSize: 20, getRowId });
+```
+
+## Customize cells
+
+`renderCell` returns any React Native element. Sorting, filters and search keep using the raw
+value (or `getValue` when you set one):
+
+```tsx
+{
+  key: 'status',
+  title: 'Status',
+  width: 120,
+  renderCell: order => <StatusBadge status={order.status} />,
+},
+{
+  key: 'total',
+  title: 'Total',
+  width: 110,
+  align: 'right',
+  renderCell: order => <Text>{formatMoney(order.total)}</Text>,
+},
+```
+
+## Add features with props
+
+Most features are a prop away:
+
+```tsx
+<ModernTable
+  columns={columns}
+  {...table.getTableProps()}
+  theme="dark"
+  enableColumnResize
+  enableColumnReorder
+  renderExpandedRow={order => <OrderDetails order={order} />}
+  renderBulkActions={ids => <ExportButton ids={ids} />}
+  onRowPress={order => navigation.navigate('Order', { id: order.id })}
+/>
+```
+
+## Next steps
+
+- [useTable](/expo-modern-table/guides/use-table/) — options, what the hook returns, controlled state.
+- [Server-side data](/expo-modern-table/guides/server-side/) — when your API sorts, filters and paginates.
+- [Columns](/expo-modern-table/guides/columns/) — widths, pinning, resizing and custom headers.
+- [ModernTable props](/expo-modern-table/reference/modern-table/) — the full list.

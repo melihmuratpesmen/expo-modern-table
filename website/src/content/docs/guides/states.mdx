@@ -1,0 +1,32 @@
+---
+title: Loading, error & empty
+description: Built-in states for loading, refetching, errors, empty results, pull to refresh and infinite scroll.
+sidebar:
+  order: 9
+---
+
+| Prop | Behaviour |
+| --- | --- |
+| `isLoading` | With no rows: a spinner instead of the empty state. With rows: dims them while refetching. |
+| `isLoadingMore` | A small spinner below the rows (next page of an infinite list). |
+| `error` | Replaces the rows. A string (or `true`, for the translated default text) shows the built-in error view; any element is rendered as is. |
+| `onRetry` | Adds a retry button to the built-in error view. |
+| `emptyComponent` | Replaces the built-in "No data found." view. |
+| `refreshing` / `onRefresh` | Pull to refresh. |
+| `onEndReached` / `onEndReachedThreshold` | Infinite scroll. |
+
+```tsx
+<ModernTable
+  columns={columns}
+  {...table.getTableProps()}
+  isLoading={query.isFetching}
+  error={query.error ? 'Could not load orders.' : undefined}
+  onRetry={() => query.refetch()}
+  emptyComponent={<EmptyOrders onCreate={openNewOrder} />}
+  refreshing={query.isRefetching}
+  onRefresh={query.refetch}
+/>
+```
+
+The built-in texts come from `translations` (`loading`, `error`, `retry`, `empty`) — see
+[Translations](/expo-modern-table/guides/i18n/).

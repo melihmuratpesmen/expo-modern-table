@@ -1,0 +1,23 @@
+---
+title: Accessibility
+description: What screen readers announce and how to adapt the labels.
+sidebar:
+  order: 14
+---
+
+The table uses native accessibility roles and states, and every label is translatable through
+[`translations`](/expo-modern-table/guides/i18n/):
+
+- **Sortable headers** are buttons that announce the column and its sort direction
+  ("Total, sorted descending").
+- **Checkboxes** use the checkbox role with checked / unchecked / mixed state; the header one is
+  "Select all", row ones "Select row".
+- **Filter options** in the filter dialog are radio buttons.
+- **Expand buttons**, **drag handles**, **toolbar buttons** (density, columns, reorder,
+  fullscreen) and **pagination buttons** have labels.
+- **Column resizing** works without dragging: resize handles are adjustable elements, so
+  VoiceOver and TalkBack increment / decrement actions change the width in 10 pt steps.
+- Touch targets of small controls are extended with `hitSlop`.
+
+For custom cells, add `accessibilityLabel` to anything that isn't plain text — for example a
+status badge that only shows a color.

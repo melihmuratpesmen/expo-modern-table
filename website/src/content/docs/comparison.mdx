@@ -1,0 +1,91 @@
+---
+title: Comparison
+description: How expo-modern-table compares with React Native Paper's DataTable, TanStack Table, react-native-table-component and other options.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+There are good reasons to pick each of these libraries. This page tries to be precise about what
+each one does out of the box so you can choose quickly. Facts were checked against each
+project's docs, source and npm in **October 2026** — if something is out of date, please
+[open an issue](https://github.com/melihmuratpesmen/expo-modern-table/issues).
+
+## At a glance
+
+- **expo-modern-table** — a complete, themed data-table UI with the data logic built in.
+- **[React Native Paper `DataTable`](https://oss.callstack.com/react-native-paper/docs/components/DataTable/DataTable)**
+  — Material Design building blocks (header, rows, cells, pager). You provide the data logic.
+- **[TanStack Table](https://tanstack.com/table)** — headless logic and state (sorting,
+  filtering, pinning, grouping…). You build the entire UI, gestures and virtualization.
+- **[react-native-table-component](https://github.com/dohooo/react-native-table-component)** —
+  a simple layout component for rows and columns. Archived; no longer maintained.
+- **UI-kit tables** ([gluestack-ui](https://gluestack.io/ui/docs/components/table),
+  [@rn-primitives/table](https://rnprimitives.com/table/)) — presentational, styleable markup.
+- **[react-native-grid-table](https://github.com/ahmdshrif/react-native-grid-table)** — a new
+  beta FlashList grid with pinned columns, sorting, filters and selection.
+
+## Features
+
+**Yes** = built in · **Logic** = state / logic only, you render it · **DIY** = you build it ·
+**—** = not offered
+
+| | **This library** | Paper DataTable | TanStack Table | table-component | grid-table (beta) |
+| --- | --- | --- | --- | --- | --- |
+| Rendering | Ready-made UI on FlashList | Material components | Headless (no UI) | Layout views | Ready-made UI on FlashList |
+| Virtualized rows | Yes | DIY | DIY | — | Yes |
+| Sticky / pinned columns | Yes | — | Logic | — | Yes (left) |
+| Sorting | Yes | Header arrow; you sort | Logic | — | Yes |
+| Column filters | Yes (text, select, boolean, range) | — | Logic | — | Yes |
+| Global search | Yes | — | Logic | — | Yes |
+| Pagination | Yes | Pager control; you slice | Logic | — | Load more only |
+| Server-side mode | Yes | DIY | Yes | — | Yes |
+| Row selection + bulk actions | Yes | — | Logic | — | Selection |
+| Column resize | Yes | — | Logic (DOM events) | — | — |
+| Column reorder / visibility | Yes | — | Logic | — | — |
+| Row drag reorder | Yes | — | DIY | — | — |
+| Inline editing | Yes | — | DIY | — | — |
+| Expandable rows | Yes | — | Logic | — | — |
+| Summary row / aggregates | Yes | — | Logic | — | — |
+| Loading / error / empty states | Yes | DIY | DIY | — | Loading, empty |
+| Light / dark theming | Yes | Yes (Paper theme) | Your UI | Style props | Yes |
+| Translatable UI strings | Yes (EN, TR included) | Pager labels | Your UI | — | Some |
+| CSV export | Yes | — | — | — | — |
+| Web (react-native-web) | Yes | Yes | Web-first | Unverified | Untested |
+| TypeScript | Yes | Yes | Yes | Via @types | Yes |
+
+For grid-table, "—" also covers features its docs don't mention.
+
+TanStack Table also offers things this library doesn't: column grouping, faceting, cell
+selection, row pinning and cell spanning — and the same logic on the web.
+
+## Choose…
+
+**expo-modern-table** when you want a finished, mobile-first data table — pinned columns,
+gestures, filters, server-side paging, editing, theming — without assembling it yourself.
+
+**Paper `DataTable`** when your tables are small and static, or your app is built on Paper and
+Material Design. It is mature, has no extra dependencies and follows your Paper theme.
+
+**TanStack Table** when you need a fully custom design, its advanced features (grouping,
+faceting, pivot-style aggregation), or the same table logic in a React web app. Rendering,
+gestures and virtualization are yours to build in React Native.
+
+**gluestack-ui / @rn-primitives** when you already use those kits and only need a styled,
+presentational table — gluestack renders a semantic `<table>` on the web.
+
+**A markdown renderer** (e.g. `react-native-marked`) for tables inside rich text content.
+
+<Aside title="The cost of a full-featured table">
+  expo-modern-table needs FlashList, Gesture Handler, Reanimated and lucide icons as peer
+  dependencies. Most Expo apps already have the first three; for a single static table with a
+  few rows, that may be more than you need.
+</Aside>
+
+## Migrating
+
+**From Paper `DataTable`**: move your header titles into `columns`, delete the sorting and
+slicing code, and render `<ModernTable columns={columns} {...useTable(rows, columns).getTableProps()} />`.
+Match Paper's colors with `themeConfig={{ primary: theme.colors.primary }}`.
+
+**From react-native-table-component**: `tableHead` becomes `columns[].title`, `widthArr` becomes
+`columns[].width`, and `tableData` (arrays) becomes an array of objects with an `id`.

@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 64 64" fill="none">
+  <title>expo-modern-table</title>
+  <defs>
+    <linearGradient id="emt-bg" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#6366F1"/>
+      <stop offset="1" stop-color="#8B5CF6"/>
+    </linearGradient>
+    <linearGradient id="emt-row" x1="26" y1="0" x2="52" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0.22"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="url(#emt-bg)"/>
+  <rect x="12" y="13" width="40" height="8" rx="3" fill="#FFFFFF"/>
+  <rect x="12" y="25" width="11" height="26" rx="3" fill="#FFFFFF"/>
+  <rect x="26" y="25" width="26" height="6" rx="3" fill="url(#emt-row)"/>
+  <rect x="26" y="35" width="26" height="6" rx="3" fill="url(#emt-row)"/>
+  <rect x="26" y="45" width="26" height="6" rx="3" fill="url(#emt-row)"/>
+</svg>
