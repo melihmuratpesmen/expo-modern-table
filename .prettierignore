@@ -1,0 +1,7 @@
+node_modules/
+lib/
+coverage/
+docs/media/
+example/
+package-lock.json
+*.md

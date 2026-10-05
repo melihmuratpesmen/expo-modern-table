@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -7,13 +7,15 @@ import {
   StyleSheet,
   Modal,
   ScrollView,
-} from "react-native";
-import { X, Check } from "lucide-react-native";
-import { FilterConfig, FilterValue, TableTranslations } from "./types";
-import { TableTheme } from "./theme/tokens";
+} from 'react-native';
+import { useTableIcons } from './icons';
+import { FilterConfig, FilterValue, TableTranslations } from './types';
+import { TableTheme, themeFallbacks } from './theme/tokens';
+import { parseNumberInput } from './core/edit';
+import { SIGNED_DECIMAL_KEYBOARD } from './utils/keyboard';
 
+/** Mounted only while open, so the draft state always starts from `currentValue`. */
 interface ColumnFilterModalProps {
-  visible: boolean;
   onClose: () => void;
   columnTitle: string;
   filterConfig: FilterConfig;
@@ -24,7 +26,6 @@ interface ColumnFilterModalProps {
 }
 
 export function ColumnFilterModal({
-  visible,
   onClose,
   columnTitle,
   filterConfig,
@@ -33,123 +34,98 @@ export function ColumnFilterModal({
   theme,
   translations,
 }: ColumnFilterModalProps) {
+  const icons = useTableIcons();
   const [tempValue, setTempValue] = useState<FilterValue>(currentValue);
+  // Range inputs keep the raw text so partial input like "1," or "-" can be typed.
+  const initialRange = typeof currentValue === 'object' ? currentValue : {};
+  const [minText, setMinText] = useState(initialRange.min?.toString() ?? '');
+  const [maxText, setMaxText] = useState(initialRange.max?.toString() ?? '');
   const tableTheme = theme;
   const styles = React.useMemo(() => createStyles(tableTheme), [tableTheme]);
 
-  // Modal açıldığında değeri senkronize et
-  useEffect(() => {
-    setTempValue(currentValue);
-  }, [visible, currentValue]);
-
   const handleApply = () => {
-    onApply(tempValue);
-    onClose();
+    if (filterConfig.type === 'number-range') {
+      onApply({ min: parseNumberInput(minText), max: parseNumberInput(maxText) });
+    } else {
+      onApply(tempValue);
+    }
   };
 
-  const cleanFilter = () => {
-    onApply(undefined);
-    onClose();
-  };
+  const cleanFilter = () => onApply(undefined);
 
   const renderFilterInput = () => {
     switch (filterConfig.type) {
-      case "text":
+      case 'text':
         return (
           <TextInput
             style={styles.input}
             placeholder={translations.searchPlaceholder}
             placeholderTextColor={tableTheme.textSecondary}
-            value={typeof tempValue === "string" ? tempValue : ""}
+            value={typeof tempValue === 'string' ? tempValue : ''}
             onChangeText={setTempValue}
             autoFocus
           />
         );
 
-      case "select":
+      case 'select':
         return (
           <ScrollView style={styles.optionsList}>
             <TouchableOpacity
               style={[styles.optionItem, !tempValue && styles.optionItemActive]}
               onPress={() => setTempValue(undefined)}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: !tempValue }}
             >
-              <Text
-                style={[
-                  styles.optionText,
-                  !tempValue && styles.optionTextActive,
-                ]}
-              >
+              <Text style={[styles.optionText, !tempValue && styles.optionTextActive]}>
                 {translations.all}
               </Text>
-              {!tempValue && <Check size={16} color="white" />}
+              {!tempValue && <icons.check size={16} color={tableTheme.textInverse} />}
             </TouchableOpacity>
 
-            {filterConfig.options?.map((option) => (
+            {filterConfig.options?.map(option => (
               <TouchableOpacity
                 key={option}
-                style={[
-                  styles.optionItem,
-                  tempValue === option && styles.optionItemActive,
-                ]}
-                onPress={() =>
-                  setTempValue(option === tempValue ? undefined : option)
-                }
+                style={[styles.optionItem, tempValue === option && styles.optionItemActive]}
+                onPress={() => setTempValue(option === tempValue ? undefined : option)}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: tempValue === option }}
               >
-                <Text
-                  style={[
-                    styles.optionText,
-                    tempValue === option && styles.optionTextActive,
-                  ]}
-                >
+                <Text style={[styles.optionText, tempValue === option && styles.optionTextActive]}>
                   {option}
                 </Text>
-                {tempValue === option && <Check size={16} color="white" />}
+                {tempValue === option && <icons.check size={16} color={tableTheme.textInverse} />}
               </TouchableOpacity>
             ))}
           </ScrollView>
         );
 
-      case "boolean":
+      case 'boolean':
         return (
           <View style={styles.booleanContainer}>
             <TouchableOpacity
-              style={[
-                styles.booleanButton,
-                tempValue === true && styles.booleanButtonActive,
-              ]}
+              style={[styles.booleanButton, tempValue === true && styles.booleanButtonActive]}
               onPress={() => setTempValue(true)}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: tempValue === true }}
             >
-              <Text
-                style={[
-                  styles.booleanText,
-                  tempValue === true && styles.booleanTextActive,
-                ]}
-              >
+              <Text style={[styles.booleanText, tempValue === true && styles.booleanTextActive]}>
                 {translations.yesActive}
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[
-                styles.booleanButton,
-                tempValue === false && styles.booleanButtonActive,
-              ]}
+              style={[styles.booleanButton, tempValue === false && styles.booleanButtonActive]}
               onPress={() => setTempValue(false)}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: tempValue === false }}
             >
-              <Text
-                style={[
-                  styles.booleanText,
-                  tempValue === false && styles.booleanTextActive,
-                ]}
-              >
+              <Text style={[styles.booleanText, tempValue === false && styles.booleanTextActive]}>
                 {translations.noPassive}
               </Text>
             </TouchableOpacity>
           </View>
         );
 
-      case "number-range": {
-        const rangeValue =
-          typeof tempValue === "object" && tempValue !== null ? tempValue : {};
+      case 'number-range':
         return (
           <View style={styles.rangeContainer}>
             <View style={styles.rangeInputWrapper}>
@@ -157,16 +133,11 @@ export function ColumnFilterModal({
               <TextInput
                 style={styles.input}
                 placeholder="0"
-                keyboardType="numeric"
-                value={
-                  rangeValue.min !== undefined ? String(rangeValue.min) : ""
-                }
-                onChangeText={(text) =>
-                  setTempValue({
-                    ...rangeValue,
-                    min: text ? Number(text) : undefined,
-                  })
-                }
+                accessibilityLabel={`${columnTitle} ${translations.min}`}
+                placeholderTextColor={tableTheme.textSecondary}
+                keyboardType={SIGNED_DECIMAL_KEYBOARD}
+                value={minText}
+                onChangeText={setMinText}
               />
             </View>
             <View style={styles.rangeInputWrapper}>
@@ -174,21 +145,15 @@ export function ColumnFilterModal({
               <TextInput
                 style={styles.input}
                 placeholder="100"
-                keyboardType="numeric"
-                value={
-                  rangeValue.max !== undefined ? String(rangeValue.max) : ""
-                }
-                onChangeText={(text) =>
-                  setTempValue({
-                    ...rangeValue,
-                    max: text ? Number(text) : undefined,
-                  })
-                }
+                accessibilityLabel={`${columnTitle} ${translations.max}`}
+                placeholderTextColor={tableTheme.textSecondary}
+                keyboardType={SIGNED_DECIMAL_KEYBOARD}
+                value={maxText}
+                onChangeText={setMaxText}
               />
             </View>
           </View>
         );
-      }
 
       default:
         return <Text>{translations.unknownFilter}</Text>;
@@ -197,10 +162,10 @@ export function ColumnFilterModal({
 
   return (
     <Modal
-      visible={visible}
+      visible
       transparent
       animationType="fade"
-      supportedOrientations={["portrait", "landscape"]}
+      supportedOrientations={['portrait', 'landscape']}
       onRequestClose={onClose}
     >
       <View style={styles.overlay}>
@@ -209,18 +174,31 @@ export function ColumnFilterModal({
             <Text style={styles.title}>
               {translations.filter} {columnTitle}
             </Text>
-            <TouchableOpacity onPress={onClose}>
-              <X size={20} color={tableTheme.textSecondary} />
+            <TouchableOpacity
+              onPress={onClose}
+              accessibilityRole="button"
+              accessibilityLabel={translations.close}
+              hitSlop={8}
+            >
+              <icons.close size={20} color={tableTheme.textSecondary} />
             </TouchableOpacity>
           </View>
 
           <View style={styles.body}>{renderFilterInput()}</View>
 
           <View style={styles.footer}>
-            <TouchableOpacity style={styles.clearButton} onPress={cleanFilter}>
+            <TouchableOpacity
+              style={styles.clearButton}
+              onPress={cleanFilter}
+              accessibilityRole="button"
+            >
               <Text style={styles.clearButtonText}>{translations.clear}</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.applyButton} onPress={handleApply}>
+            <TouchableOpacity
+              style={styles.applyButton}
+              onPress={handleApply}
+              accessibilityRole="button"
+            >
               <Text style={styles.applyButtonText}>{translations.apply}</Text>
             </TouchableOpacity>
           </View>
@@ -234,32 +212,32 @@ const createStyles = (theme: TableTheme) =>
   StyleSheet.create({
     overlay: {
       flex: 1,
-      backgroundColor: "rgba(17, 24, 39, 0.4)", // Darker, smoother overlay
-      justifyContent: "center",
-      alignItems: "center",
+      backgroundColor: theme.overlay ?? themeFallbacks.overlay,
+      justifyContent: 'center',
+      alignItems: 'center',
       padding: 20,
     },
     modalContent: {
-      width: "90%",
+      width: '90%',
       maxWidth: 400,
       backgroundColor: theme.surface,
       borderRadius: 24,
       padding: 24,
-      shadowColor: "#000",
+      shadowColor: '#000',
       shadowOffset: { width: 0, height: 10 },
       shadowOpacity: 0.15,
       shadowRadius: 20,
       elevation: 10,
     },
     header: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
       marginBottom: 20,
     },
     title: {
       fontSize: 20,
-      fontFamily: theme.fontFamily.bold, 
+      fontFamily: theme.fontFamily.bold,
       color: theme.text,
     },
     body: {
@@ -278,9 +256,9 @@ const createStyles = (theme: TableTheme) =>
       maxHeight: 200,
     },
     optionItem: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
       padding: 14,
       borderBottomWidth: 1,
       borderBottomColor: theme.border,
@@ -294,14 +272,14 @@ const createStyles = (theme: TableTheme) =>
     optionText: {
       fontSize: 14,
       color: theme.text,
-      fontFamily: theme.fontFamily.medium, 
+      fontFamily: theme.fontFamily.medium,
     },
     optionTextActive: {
       color: theme.textInverse,
-      fontFamily: theme.fontFamily.semibold, 
+      fontFamily: theme.fontFamily.semibold,
     },
     booleanContainer: {
-      flexDirection: "row",
+      flexDirection: 'row',
       gap: 12,
     },
     booleanButton: {
@@ -310,7 +288,7 @@ const createStyles = (theme: TableTheme) =>
       borderWidth: 1,
       borderColor: theme.border,
       borderRadius: 12, // Rounder
-      alignItems: "center",
+      alignItems: 'center',
     },
     booleanButtonActive: {
       backgroundColor: theme.primary,
@@ -318,14 +296,14 @@ const createStyles = (theme: TableTheme) =>
     },
     booleanText: {
       color: theme.text,
-      fontFamily: theme.fontFamily.medium, 
+      fontFamily: theme.fontFamily.medium,
     },
     booleanTextActive: {
       color: theme.textInverse,
-      fontFamily: theme.fontFamily.semibold, 
+      fontFamily: theme.fontFamily.semibold,
     },
     rangeContainer: {
-      flexDirection: "row",
+      flexDirection: 'row',
       gap: 12,
     },
     rangeInputWrapper: {
@@ -335,11 +313,11 @@ const createStyles = (theme: TableTheme) =>
       fontSize: 13,
       color: theme.textSecondary,
       marginBottom: 6,
-      fontFamily: theme.fontFamily.medium, 
+      fontFamily: theme.fontFamily.medium,
     },
     footer: {
-      flexDirection: "row",
-      justifyContent: "flex-end",
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
       gap: 12,
     },
     clearButton: {
@@ -348,7 +326,7 @@ const createStyles = (theme: TableTheme) =>
     },
     clearButtonText: {
       color: theme.textSecondary,
-      fontFamily: theme.fontFamily.semibold, 
+      fontFamily: theme.fontFamily.semibold,
     },
 
     applyButton: {
@@ -364,6 +342,6 @@ const createStyles = (theme: TableTheme) =>
     },
     applyButtonText: {
       color: theme.textInverse,
-      fontFamily: theme.fontFamily.semibold, 
+      fontFamily: theme.fontFamily.semibold,
     },
   });

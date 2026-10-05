@@ -1,87 +1,62 @@
-import React, { useRef, useState, useMemo, useCallback } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
-  StyleSheet,
   Animated,
-  StyleProp,
-  ViewStyle,
-  TextInput,
-  useWindowDimensions,
   Platform,
+  LayoutChangeEvent,
+  ActivityIndicator,
 } from 'react-native';
-import { GestureDetector, ScrollView as GHScrollView } from 'react-native-gesture-handler';
+import { ScrollView as GHScrollView } from 'react-native-gesture-handler';
+import * as FlashListModule from '@shopify/flash-list';
 import { FlashList, ListRenderItemInfo } from '@shopify/flash-list';
-import {
-  ChevronUp,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  ListFilter,
-  Hand, // Added Hand
-  AlignJustify, // Added AlignJustify for drag handle
-} from 'lucide-react-native';
-import {
-  ModernTableProps,
-  Column,
-  Density,
-  SortDirection,
-  SelectionMode,
-  TableRow,
-  DEFAULT_TRANSLATIONS,
-} from './types';
+import { defaultIcons, TableIconsProvider } from './icons';
+import { useShallowStable } from './hooks/useShallowStable';
+import { ModernTableProps, RowId, SelectionMode, TableRow, DEFAULT_TRANSLATIONS } from './types';
 import { TableToolbar } from './TableToolbar';
 import { Checkbox } from './Checkbox';
 import { ColumnFilterModal } from './ColumnFilterModal';
 import { useTableTheme } from './hooks/useTableTheme';
-import { TableTheme } from './theme/tokens';
+import { useStableCallback } from './hooks/useStableCallback';
 import { DraggableHeader } from './DraggableHeader';
-import { DraggableRow } from './DraggableRow';
-
-const CHECKBOX_WIDTH = 50;
-
-const ROW_HEIGHTS: Record<Density, number> = {
-  compact: 36,
-  standard: 48,
-  comfortable: 64,
-};
-
-function nextSortDirection(
-  currentColumn: string | undefined,
-  currentDirection: SortDirection | undefined,
-  pressedKey: string
-): SortDirection {
-  if (currentColumn !== pressedKey || !currentDirection) return 'asc';
-  if (currentDirection === 'asc') return 'desc';
-  return null;
-}
-
-// Helper: Darken hex color by amount (0-100)
-const darkenHex = (color: string | undefined, amount: number) => {
-  if (!color) return undefined;
-  let useColor = color;
-  if (useColor.length === 4) {
-    useColor =
-      '#' + useColor[1] + useColor[1] + useColor[2] + useColor[2] + useColor[3] + useColor[3];
-  }
-
-  const num = parseInt(useColor.replace('#', ''), 16);
-  const r = (num >> 16) - amount;
-  const g = ((num >> 8) & 0x00ff) - amount;
-  const b = (num & 0x00ff) - amount;
-
-  return (
-    '#' +
-    (0x1000000 + (r < 0 ? 0 : r) * 0x10000 + (g < 0 ? 0 : g) * 0x100 + (b < 0 ? 0 : b))
-      .toString(16)
-      .slice(1)
-  );
-};
+import { ColumnResizeHandle } from './ColumnResizeHandle';
+import { RowContext, TableBodyRow } from './TableBodyRow';
+import { createTableStyles } from './tableStyles';
+import {
+  AnimatedViewStyle,
+  EditingCell,
+  GROUP_GAP,
+  PositionedColumn,
+  ROW_HEIGHTS,
+  CHECKBOX_WIDTH,
+  EXPANDER_WIDTH,
+  DEFAULT_COLUMN_WIDTH,
+  getAlign,
+  getColumnWidth,
+  markedHeaderColor,
+} from './layout';
+import { nextSortDirection } from './core/sort';
+import { isEmptyFilterValue } from './core/filter';
+import { moveKey, reconcileOrder, resolveColumnWidths } from './core/columns';
+import { getDropIndex } from './core/reorder';
+import { INVALID_EDIT, parseEditedValue } from './core/edit';
+import { aggregate } from './core/aggregate';
+import { toggleId } from './core/selection';
 
 const AnimatedGHScrollView = Animated.createAnimatedComponent(GHScrollView);
 
-export function ModernTable<T extends TableRow>({
+const defaultGetRowId = (row: object): RowId => (row as TableRow).id;
+
+/** FlashList v2 exports the recycling hooks; v1 does not. */
+const IS_FLASH_LIST_V2 = 'useRecyclingState' in FlashListModule;
+
+// Resize limits for columns without their own minWidth / maxWidth.
+const MIN_RESIZE_WIDTH = 40;
+const MAX_RESIZE_WIDTH = 1000;
+const RESIZE_HANDLE_WIDTH = 12;
+
+export function ModernTable<T extends object>({
   data,
   columns,
   onSort,
@@ -121,858 +96,879 @@ export function ModernTable<T extends TableRow>({
   onRowPress,
   selectionMode: selectionModeProp,
   onSelectionModeChange,
+  screenOrientation,
+  onFullscreenChange,
+  getRowId,
+  isLoading = false,
+  isLoadingMore = false,
+  error,
+  onRetry,
+  emptyComponent,
+  refreshing,
+  onRefresh,
+  onEndReached,
+  onEndReachedThreshold,
+  enableColumnResize = false,
+  columnWidths: columnWidthsProp,
+  onColumnResize,
+  isSomeSelected,
+  showToolbar: showToolbarProp,
+  toolbarActions,
+  renderBulkActions,
+  icons: iconsProp,
+  footerData,
+  renderExpandedRow,
+  expandedIds: expandedIdsProp,
+  onToggleExpand,
 }: ModernTableProps<T>) {
+  const iconOverrides = useShallowStable(iconsProp);
+  const icons = useMemo(() => ({ ...defaultIcons, ...iconOverrides }), [iconOverrides]);
+  // `RowIdAccessor` guarantees `getRowId` when rows have no `id`; widen it for internal use.
+  const rowIdOf = (getRowId as ((row: T) => RowId) | undefined) ?? defaultGetRowId;
   const tableTheme = useTableTheme(theme, themeConfig);
-  const styles = useMemo(() => createStyles(tableTheme), [tableTheme]);
-  const t = { ...DEFAULT_TRANSLATIONS, ...translations };
+  const styles = useMemo(() => createTableStyles(tableTheme), [tableTheme]);
+  const t = useMemo(() => ({ ...DEFAULT_TRANSLATIONS, ...translations }), [translations]);
 
-  const [internalColumnOrder, setInternalColumnOrder] = useState<string[]>(() =>
-    columns.map(c => c.key as string)
-  );
+  // --- COLUMN ORDER ---
+  // Controlled via `columnOrder`, otherwise internal. Either way it is reconciled with the
+  // current column keys, so added / removed columns never need an effect to sync.
+  const columnKeys = useMemo(() => columns.map(c => c.key as string), [columns]);
+  const [internalColumnOrder, setInternalColumnOrder] = useState<string[]>(columnKeys);
   const isColumnOrderControlled = columnOrderProp !== undefined;
-  const columnOrder = isColumnOrderControlled ? columnOrderProp : internalColumnOrder;
+  const columnOrder = useMemo(
+    () => reconcileOrder(columnOrderProp ?? internalColumnOrder, columnKeys),
+    [columnOrderProp, internalColumnOrder, columnKeys]
+  );
 
-  React.useEffect(() => {
-    if (isColumnOrderControlled) return;
-    const keys = columns.map(c => c.key as string);
-    setInternalColumnOrder(prev => {
-      if (prev.length === keys.length && prev.every((k, i) => k === keys[i])) return prev;
-      // Preserve relative order for keys that still exist, append new keys
-      const keySet = new Set(keys);
-      const kept = prev.filter(k => keySet.has(k));
-      const added = keys.filter(k => !kept.includes(k));
-      return [...kept, ...added];
-    });
-  }, [columns, isColumnOrderControlled]);
-
+  // --- SELECTION / REORDER MODE ---
   const [internalSelectionMode, setInternalSelectionMode] = useState<SelectionMode>('select');
   const isSelectionModeControlled = selectionModeProp !== undefined;
   const selectionMode = isSelectionModeControlled ? selectionModeProp : internalSelectionMode;
+  const isReorderMode = selectionMode === 'reorder';
+  // The leading column holds checkboxes, or drag handles in reorder mode — so it is also
+  // needed for row reordering when selection itself is disabled.
+  const showLeadingColumn = !!enableSelection || isReorderMode;
+  const isExpandable = !!renderExpandedRow;
+  const leadingWidth =
+    (showLeadingColumn ? CHECKBOX_WIDTH : 0) + (isExpandable ? EXPANDER_WIDTH : 0);
+
+  // Expanded rows: controlled via `expandedIds`, otherwise internal.
+  const [internalExpanded, setInternalExpanded] = useState<Set<RowId>>(() => new Set());
+  const isExpandedControlled = expandedIdsProp !== undefined;
+  const expandedIds = expandedIdsProp ?? internalExpanded;
+  const notifyToggleExpand = useStableCallback(onToggleExpand);
+  const handleToggleExpand = useCallback(
+    (id: RowId) => {
+      if (!isExpandedControlled) setInternalExpanded(prev => toggleId(prev, id));
+      notifyToggleExpand(id);
+    },
+    [isExpandedControlled, notifyToggleExpand]
+  );
 
   const toggleSelectionMode = () => {
-    const next: SelectionMode = selectionMode === 'select' ? 'reorder' : 'select';
-    if (!isSelectionModeControlled) {
-      setInternalSelectionMode(next);
-    }
+    const next: SelectionMode = isReorderMode ? 'select' : 'reorder';
+    if (!isSelectionModeControlled) setInternalSelectionMode(next);
     onSelectionModeChange?.(next);
   };
 
-  const handleColumnReorder = (fromIndex: number, toIndex: number) => {
-    if (fromIndex === toIndex) return;
+  const [viewportWidth, setViewportWidth] = useState(0);
+  const handleViewportLayout = (e: LayoutChangeEvent) =>
+    setViewportWidth(e.nativeEvent.layout.width);
+  // Status views (empty / loading / error) span the visible width, not the full scroll width.
+  const viewportStyle = viewportWidth > 0 ? { width: viewportWidth } : undefined;
 
-    const newOrder = [...columnOrder];
-    const [movedItem] = newOrder.splice(fromIndex, 1);
-    const targetIndex = Math.max(0, Math.min(newOrder.length, toIndex));
-    newOrder.splice(targetIndex, 0, movedItem);
+  // One Animated value drives every sticky cell; interpolations are shared per column below.
+  const [scrollX] = useState(() => new Animated.Value(0));
+  const handleScroll = useMemo(
+    () =>
+      Animated.event([{ nativeEvent: { contentOffset: { x: scrollX } } }], {
+        useNativeDriver: true,
+      }),
+    [scrollX]
+  );
 
-    if (!isColumnOrderControlled) {
-      setInternalColumnOrder(newOrder);
-    }
-    onColumnReorder?.(newOrder);
-  };
+  // --- EDIT STATE ---
+  // The input is uncontrolled: typed text lives in a ref so rows don't re-render per keystroke.
+  const [editingCell, setEditingCell] = useState<EditingCell | null>(null);
+  const editingRef = useRef<EditingCell | null>(null);
+  const editTextRef = useRef('');
 
-  const { width: SCREEN_WIDTH } = useWindowDimensions();
-  const scrollX = useRef(new Animated.Value(0)).current;
-
-  // Edit Mode State
-  const [editingCell, setEditingCell] = useState<{
-    id: string | number;
-    key: string;
-  } | null>(null);
-
-  const [tempValue, setTempValue] = useState('');
   const [activeFilterColumn, setActiveFilterColumn] = useState<string | null>(null);
 
-  // 1. Prepare Active Columns
-  // 1. Prepare Active Columns based on Order
+  // --- COLUMN LAYOUT ---
   const activeColumns = useMemo(() => {
-    // Filter visible columns first
-    const visibleCols = columns.filter(col =>
-      visibleColumns ? visibleColumns.includes(col.key as string) : true
-    );
-
-    // Sort according to columnOrder
-    return visibleCols.sort(
-      (a, b) => columnOrder.indexOf(a.key as string) - columnOrder.indexOf(b.key as string)
-    );
+    const visible = visibleColumns ? new Set(visibleColumns) : null;
+    const position = new Map(columnOrder.map((key, index) => [key, index]));
+    return columns
+      .filter(col => !visible || visible.has(col.key as string))
+      .sort((a, b) => (position.get(a.key as string) ?? 0) - (position.get(b.key as string) ?? 0));
   }, [columns, visibleColumns, columnOrder]);
 
-  // 2. Pre-calculate Offsets (Memoized)
-  const columnsWithOffsets = useMemo(() => {
-    let currentX = enableSelection ? CHECKBOX_WIDTH : 0;
-    let stickyAccumulator = enableSelection ? CHECKBOX_WIDTH : 0;
+  // --- COLUMN WIDTHS ---
+  // Resized widths are controlled via `columnWidths`, otherwise internal.
+  const [internalWidths, setInternalWidths] = useState<Record<string, number>>({});
+  const widthOverrides = columnWidthsProp ?? internalWidths;
+  const resolvedWidths = useMemo(
+    () =>
+      resolveColumnWidths(
+        activeColumns,
+        viewportWidth > 0 ? viewportWidth - leadingWidth : 0,
+        widthOverrides,
+        DEFAULT_COLUMN_WIDTH
+      ),
+    [activeColumns, viewportWidth, leadingWidth, widthOverrides]
+  );
 
-    return activeColumns.map(col => {
-      const width = col.width || 100;
-      const colData = {
+  const handleColumnResize = (key: string, width: number) => {
+    if (columnWidthsProp === undefined) setInternalWidths(prev => ({ ...prev, [key]: width }));
+    onColumnResize?.(key, width);
+  };
+
+  const columnsWithOffsets = useMemo<PositionedColumn<T>[]>(() => {
+    const result: PositionedColumn<T>[] = [];
+    let currentX = leadingWidth;
+    let stickyAccumulator = leadingWidth;
+
+    for (const col of activeColumns) {
+      const width = resolvedWidths.get(col.key as string) ?? getColumnWidth(col);
+      const isSticky = stickyColumns ? stickyColumns.includes(col.key as string) : col.isSticky;
+      result.push({
         ...col,
+        layoutWidth: width,
         offsetX: currentX,
         stickyOffset: stickyAccumulator,
-      };
-
+        isSticky,
+      });
       currentX += width;
+      if (isSticky) stickyAccumulator += width;
+    }
+    return result;
+  }, [activeColumns, resolvedWidths, leadingWidth, stickyColumns]);
 
-      const isSticky = stickyColumns ? stickyColumns.includes(col.key as string) : col.isSticky;
-
-      if (isSticky) {
-        stickyAccumulator += width;
-      }
-
-      return { ...colData, isSticky };
-    });
-  }, [activeColumns, enableSelection, stickyColumns]);
-
-  const contentWidth = activeColumns.reduce((acc, col) => acc + (col.width || 100), 0);
-  const totalWidth = enableSelection ? contentWidth + CHECKBOX_WIDTH : contentWidth;
+  const columnWidths = useMemo(
+    () => columnsWithOffsets.map(col => col.layoutWidth),
+    [columnsWithOffsets]
+  );
+  const totalWidth = leadingWidth + columnWidths.reduce((acc, width) => acc + width, 0);
   const currentRowHeight = ROW_HEIGHTS[density];
-  // iOS + FlashList can keep stale recycled cells after rapid sort/order switches.
-  // Remount list on identity changes to force consistent redraw.
-  const listIdentityKey = `${sortColumn ?? 'nosort'}-${sortDirection ?? 'none'}-${columnOrder.join('|')}`;
+  // v2 keeps the first visible row in place when data changes (maintainVisibleContentPosition,
+  // on by default). In a table that scrolls the top rows out of view after a row move or sort,
+  // so it is turned off. v1 has no such default — the same prop name there goes to RN's
+  // ScrollView and would turn it on — and needs estimatedItemSize instead.
+  const flashListVersionProps = IS_FLASH_LIST_V2
+    ? { maintainVisibleContentPosition: { disabled: true } }
+    : { estimatedItemSize: currentRowHeight };
+
+  // iOS + FlashList can keep stale recycled cells after rapid sort switches, so the list is
+  // remounted when the sort changes (which also scrolls back to the top). Column order is not
+  // part of the key: reordering only re-renders rows through the row context.
+  const listIdentityKey = `${sortColumn ?? 'nosort'}-${sortDirection ?? 'none'}`;
+
+  // --- REORDER ---
+  const handleHeaderDragEnd = (fromIndex: number, translationX: number) => {
+    const toIndex = getDropIndex(columnWidths, fromIndex, translationX);
+    const fromKey = columnsWithOffsets[fromIndex]?.key as string | undefined;
+    const toKey = columnsWithOffsets[toIndex]?.key as string | undefined;
+    if (toIndex === fromIndex || !fromKey || !toKey) return;
+
+    // Move by key within the full order, so hidden columns don't shift the target.
+    const next = moveKey(columnOrder, fromKey, toKey);
+    if (!isColumnOrderControlled) setInternalColumnOrder(next);
+    onColumnReorder?.(next);
+  };
+
+  const rowSizes = useMemo(() => {
+    if (!isReorderMode) return [];
+    return data.map((item, index) => {
+      const startsGroup =
+        !!rowGroupKey && index > 0 && item[rowGroupKey] !== data[index - 1][rowGroupKey];
+      return currentRowHeight + (startsGroup ? GROUP_GAP : 0);
+    });
+  }, [isReorderMode, data, rowGroupKey, currentRowHeight]);
+
+  // Event handlers from props get stable wrappers so memoized rows don't re-render when a
+  // parent passes new inline functions. Render-affecting props (getRowStyle, rowStyle,
+  // columns) are used as-is.
+  const handleRowPress = useStableCallback(onRowPress);
+  const handleToggleRow = useStableCallback(onToggleRow);
+  const handleRowChange = useStableCallback(onRowChange);
+  const handleRowReorder = useStableCallback(onRowReorder);
+
+  const handleRowDragEnd = useCallback(
+    (fromIndex: number, translationY: number) => {
+      if (sortDirection) return; // Order is meaningless while a sort is applied
+      const toIndex = getDropIndex(rowSizes, fromIndex, translationY);
+      if (toIndex !== fromIndex) handleRowReorder(fromIndex, toIndex);
+    },
+    [sortDirection, rowSizes, handleRowReorder]
+  );
 
   // --- EDIT LOGIC ---
-  const handleStartEdit = (item: T, key: string, value: any) => {
-    setEditingCell({ id: item.id, key });
-    setTempValue(String(value));
-  };
+  const startEdit = useCallback(
+    (item: T, key: string) => {
+      const value = item[key as keyof T];
+      const cell: EditingCell = {
+        id: rowIdOf(item),
+        key,
+        initialText: value === null || value === undefined ? '' : String(value),
+      };
+      editingRef.current = cell;
+      editTextRef.current = cell.initialText;
+      setEditingCell(cell);
+    },
+    [rowIdOf]
+  );
 
-  const handleFinishEdit = (item: T, key: string) => {
-    if (editingCell && onRowChange) {
-      const newItem = { ...item, [key]: tempValue };
-      onRowChange(newItem);
-    }
-    setEditingCell(null);
-  };
+  const handleEditTextChange = useCallback((text: string) => {
+    editTextRef.current = text;
+  }, []);
 
-  // --- STICKY STYLE GENERATOR ---
-  const getStickyStyle = (col: any, index: number, backgroundColor: string) => {
-    if (!col.isSticky) return {};
+  /** Commits once per edit — submit also blurs, and the ref drops the second call. */
+  const commitEdit = useCallback(
+    (item: T, key: string) => {
+      const cell = editingRef.current;
+      if (!cell || cell.id !== rowIdOf(item) || cell.key !== key) return;
+      editingRef.current = null;
+      setEditingCell(null);
 
-    const threshold = col.offsetX - col.stickyOffset;
+      const text = editTextRef.current;
+      if (text === cell.initialText) return;
+      const value = parseEditedValue(text, item[key as keyof T]);
+      if (value === INVALID_EDIT) return;
+      handleRowChange({ ...item, [key]: value });
+    },
+    [rowIdOf, handleRowChange]
+  );
 
-    return {
-      position: 'relative',
-      zIndex: 100 - index,
-      backgroundColor,
+  // --- STICKY STYLES ---
+  // Built once per layout change and shared by every row, instead of one interpolation per
+  // cell per render.
+  const leadingTransform = useMemo<AnimatedViewStyle>(
+    () => ({
       transform: [
-        {
-          translateX: scrollX.interpolate({
-            inputRange: [-1, threshold, threshold + 1],
-            outputRange: [0, 0, 1],
-            extrapolateLeft: 'clamp',
-          }),
-        },
+        { translateX: scrollX.interpolate({ inputRange: [-1, 0, 1], outputRange: [0, 0, 1] }) },
       ],
-      borderRightWidth: 1,
-      borderRightColor: tableTheme.border,
-      shadowColor: '#000',
-      shadowOffset: { width: 2, height: 0 },
-      shadowOpacity: 0.05,
-      shadowRadius: 2,
-      elevation: 3,
-    } as unknown as StyleProp<ViewStyle>;
-  };
+    }),
+    [scrollX]
+  );
 
-  const getAlign = (align?: 'left' | 'center' | 'right') => {
-    switch (align) {
-      case 'center':
-        return 'center';
-      case 'right':
-        return 'flex-end';
-      default:
-        return 'flex-start';
+  const stickyTranslations = useMemo(() => {
+    const map = new Map<string, Animated.AnimatedInterpolation<number>>();
+    for (const col of columnsWithOffsets) {
+      if (!col.isSticky) continue;
+      const threshold = col.offsetX - col.stickyOffset;
+      map.set(
+        col.key as string,
+        scrollX.interpolate({
+          inputRange: [-1, threshold, threshold + 1],
+          outputRange: [0, 0, 1],
+          extrapolateLeft: 'clamp',
+        })
+      );
     }
-  };
+    return map;
+  }, [columnsWithOffsets, scrollX]);
+
+  const stickyStyles = useMemo(() => {
+    const map = new Map<string, AnimatedViewStyle>();
+    columnsWithOffsets.forEach((col, index) => {
+      const translateX = stickyTranslations.get(col.key as string);
+      if (!translateX) return;
+      map.set(col.key as string, {
+        position: 'relative',
+        zIndex: 100 - index,
+        transform: [{ translateX }],
+        borderRightWidth: 1,
+        borderRightColor: tableTheme.border,
+        shadowColor: '#000',
+        shadowOffset: { width: 2, height: 0 },
+        shadowOpacity: 0.05,
+        shadowRadius: 2,
+        elevation: 3,
+      });
+    });
+    return map;
+  }, [columnsWithOffsets, stickyTranslations, tableTheme.border]);
 
   // --- RENDERERS ---
 
-  const renderCheckboxColumn = (
-    type: 'header' | 'row',
-    item?: T,
-    bgColor: string = tableTheme.background,
-    dragGesture?: any // Using any to avoid complex type import issues for now, or use ReturnType if imported
-  ) => {
-    const isHeader = type === 'header';
-
-    // If in Reorder mode, render nothing in Header, or a placeholder
-    // In Row, render Drag Handle
-    if (selectionMode === 'reorder') {
-      if (isHeader) {
-        return (
-          <View
-            style={[styles.stickyCheckbox, { height: currentRowHeight, backgroundColor: bgColor }]}
-          >
-            <Hand size={20} color={tableTheme.textSecondary} />
-          </View>
-        );
+  // --- FOOTER (summary row) ---
+  const footerRows = footerData ?? data;
+  const footerContent = useMemo(() => {
+    const content = new Map<string, React.ReactNode>();
+    const numberFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 });
+    for (const col of columnsWithOffsets) {
+      if (col.footer === undefined) continue;
+      if (typeof col.footer === 'function') {
+        content.set(col.key as string, col.footer(footerRows));
+      } else {
+        const value = aggregate(footerRows, col, col.footer);
+        content.set(col.key as string, value === undefined ? '' : numberFormat.format(value));
       }
+    }
+    return content;
+  }, [columnsWithOffsets, footerRows]);
 
-      const DragHandle = (
-        <View style={{ opacity: 0.5 }}>
-          <AlignJustify size={20} color={tableTheme.text} />
-        </View>
-      );
+  /** Empty cell above / below the row expand buttons, pinned with the leading column. */
+  const renderExpanderPlaceholder = () => (
+    <Animated.View
+      style={[
+        styles.expanderCell,
+        { height: currentRowHeight, backgroundColor: tableTheme.headerBackground },
+        leadingTransform,
+      ]}
+    />
+  );
 
-      return (
+  const renderFooter = () => (
+    <View style={[styles.footer, { height: currentRowHeight }]}>
+      {showLeadingColumn && (
         <Animated.View
           style={[
             styles.stickyCheckbox,
-            {
-              height: currentRowHeight,
-              backgroundColor: bgColor,
-              transform: [
-                {
-                  translateX: scrollX.interpolate({
-                    inputRange: [-1, 0, 1],
-                    outputRange: [0, 0, 1],
-                  }),
-                },
-              ],
-            },
+            { height: currentRowHeight, backgroundColor: tableTheme.headerBackground },
+            leadingTransform,
           ]}
+        />
+      )}
+      {isExpandable && renderExpanderPlaceholder()}
+      {columnsWithOffsets.map(col => {
+        const key = col.key as string;
+        const content = footerContent.get(key);
+        const sticky = stickyStyles.get(key);
+        return (
+          <Animated.View
+            key={key}
+            style={[
+              styles.cellBase,
+              {
+                width: col.layoutWidth,
+                height: currentRowHeight,
+                justifyContent: getAlign(col.align),
+              },
+              sticky,
+              sticky && { backgroundColor: tableTheme.headerBackground },
+            ]}
+          >
+            {typeof content === 'string' || typeof content === 'number' ? (
+              <Text
+                style={[styles.footerText, { textAlign: col.align || 'left' }]}
+                numberOfLines={1}
+              >
+                {content}
+              </Text>
+            ) : (
+              content
+            )}
+          </Animated.View>
+        );
+      })}
+    </View>
+  );
+
+  const renderHeaderLeadingCell = () => (
+    <Animated.View
+      style={[
+        styles.stickyCheckbox,
+        { height: currentRowHeight, backgroundColor: tableTheme.headerBackground },
+        leadingTransform,
+      ]}
+    >
+      {isReorderMode ? (
+        <icons.reorderHeader size={20} color={tableTheme.textSecondary} />
+      ) : (
+        <Checkbox
+          checked={!!isAllSelected}
+          indeterminate={!isAllSelected && !!isSomeSelected}
+          onPress={() => onToggleAll?.()}
+          accessibilityLabel={t.selectAll}
+          activeColor={tableTheme.primary}
+          borderColor={tableTheme.textSecondary}
+          checkColor={tableTheme.textInverse}
+        />
+      )}
+    </Animated.View>
+  );
+
+  const renderHeaderCell = (col: PositionedColumn<T>, index: number) => {
+    const key = col.key as string;
+    const width = col.layoutWidth;
+    const isSortable = !!onSort && col.sortable !== false;
+    const isActiveSort = sortColumn === key;
+    const isFiltered = !isEmptyFilterValue(filters?.[key]);
+
+    const headerContent = (
+      <View
+        style={[
+          styles.headerCell,
+          { width, justifyContent: getAlign(col.align) },
+          headerStyle,
+          (col.isMarked || col.markedColor) && {
+            backgroundColor: markedHeaderColor(col, tableTheme),
+          },
+          col.headerStyle,
+        ]}
+      >
+        <TouchableOpacity
+          style={[styles.headerContent, { justifyContent: getAlign(col.align) }]}
+          onPress={() => onSort?.(key, nextSortDirection(sortColumn, sortDirection, key))}
+          disabled={!isSortable}
+          accessibilityRole={isSortable ? 'button' : 'header'}
+          accessibilityLabel={col.title}
+          accessibilityValue={
+            isActiveSort && sortDirection
+              ? { text: sortDirection === 'asc' ? t.sortAscending : t.sortDescending }
+              : undefined
+          }
         >
-          {/* Visual Only - Drag logic is on the row wrapper */}
-          {dragGesture ? (
-            <GestureDetector gesture={dragGesture}>{DragHandle}</GestureDetector>
+          {col.renderHeader ? (
+            col.renderHeader(col)
           ) : (
-            DragHandle
+            <Text style={styles.headerText} numberOfLines={1}>
+              {col.title}
+            </Text>
           )}
-        </Animated.View>
+          {isActiveSort &&
+            (sortDirection === 'asc' ? (
+              <icons.sortAsc size={16} color={tableTheme.text} />
+            ) : (
+              <icons.sortDesc size={16} color={tableTheme.text} />
+            ))}
+        </TouchableOpacity>
+
+        {col.filterConfig && (
+          <TouchableOpacity
+            style={[styles.filterIcon, isFiltered && styles.filterIconActive]}
+            onPress={() => setActiveFilterColumn(key)}
+            accessibilityRole="button"
+            accessibilityLabel={`${t.filter} ${col.title}`}
+          >
+            <icons.filter
+              size={16}
+              color={isFiltered ? tableTheme.primary : tableTheme.textSecondary}
+            />
+          </TouchableOpacity>
+        )}
+      </View>
+    );
+
+    if (!col.isSticky && enableColumnReorder) {
+      return (
+        <DraggableHeader
+          key={key}
+          width={width}
+          height={currentRowHeight}
+          index={index}
+          theme={tableTheme}
+          onDragEnd={handleHeaderDragEnd}
+          testID={`header-drag-${key}`}
+        >
+          {headerContent}
+        </DraggableHeader>
       );
     }
 
     return (
       <Animated.View
+        key={key}
         style={[
-          styles.stickyCheckbox,
-          {
-            height: currentRowHeight,
-            backgroundColor: bgColor,
-            transform: [
-              {
-                translateX: scrollX.interpolate({
-                  inputRange: [-1, 0, 1],
-                  outputRange: [0, 0, 1],
-                }),
-              },
-            ],
-          },
+          styles.headerCellContainer,
+          { width },
+          stickyStyles.get(key),
+          col.isSticky && { backgroundColor: tableTheme.headerBackground },
         ]}
       >
-        <Checkbox
-          checked={isHeader ? !!isAllSelected : item ? selectedIds?.has(item.id) || false : false}
-          onPress={() => (isHeader ? onToggleAll?.() : item && onToggleRow?.(item.id))}
-          activeColor={tableTheme.primary}
-          borderColor={tableTheme.textSecondary}
-        />
+        {headerContent}
       </Animated.View>
     );
   };
 
-  const renderHeaderCell = useCallback(
-    (col: Column<T> & { offsetX: number; isSticky?: boolean }, index: number) => {
-      const stickyStyle = getStickyStyle(col, index, tableTheme.headerBackground);
-      const isSortable = !!onSort;
-      const isActiveSort = sortColumn === col.key;
-      const isFiltered = filters && filters[col.key as string] !== undefined;
-      const isSticky = col.isSticky || (stickyColumns && stickyColumns.includes(col.key as string));
-
-      const headerContent = (
-        <View
-          style={[
-            styles.headerCell, // Inner style for the content
-            { width: col.width || 100 },
-            col.align && {
-              justifyContent:
-                col.align === 'right'
-                  ? 'flex-end'
-                  : col.align === 'center'
-                    ? 'center'
-                    : 'flex-start',
-            },
-            headerStyle,
-            headerStyle,
-            (col.isMarked || col.markedColor) && {
-              backgroundColor: col.markedColor
-                ? darkenHex(col.markedColor, 20) // Darken custom color for header
-                : '#FDE68A', // Default marked header style
-            },
-            col.headerStyle, // New: Apply Header Style from Column
-          ]}
-        >
-          <TouchableOpacity
-            style={[
-              styles.headerContent,
-              col.align === 'center' && { justifyContent: 'center' },
-              col.align === 'right' && { justifyContent: 'flex-end' },
-            ]}
-            onPress={() => {
-              if (!isSortable || !onSort) return;
-              const key = col.key as string;
-              onSort(key, nextSortDirection(sortColumn, sortDirection, key));
-            }}
-            disabled={!isSortable}
-          >
-            <Text style={styles.headerText}>{col.title}</Text>
-            {isActiveSort &&
-              (sortDirection === 'asc' ? (
-                <ChevronUp size={16} color={tableTheme.text} />
-              ) : (
-                <ChevronDown size={16} color={tableTheme.text} />
-              ))}
-          </TouchableOpacity>
-
-          {col.filterConfig && (
-            <TouchableOpacity
-              style={[styles.filterIcon, isFiltered && styles.filterIconActive]}
-              onPress={() => setActiveFilterColumn(col.key as string)}
-            >
-              <ListFilter
-                size={16}
-                color={isFiltered ? tableTheme.primary : tableTheme.textSecondary}
-              />
-            </TouchableOpacity>
-          )}
-
-          {activeFilterColumn === col.key && col.filterConfig && (
-            <ColumnFilterModal
-              visible={true}
-              onClose={() => setActiveFilterColumn(null)}
-              columnTitle={col.title}
-              filterConfig={col.filterConfig}
-              currentValue={filters?.[col.key as string]}
-              onApply={val => {
-                onFilterChange?.(col.key as string, val);
-                setActiveFilterColumn(null);
-              }}
-              theme={tableTheme}
-              translations={t}
-            />
-          )}
-        </View>
-      );
-
-      // Wrap in DraggableHeader if not sticky AND enabled
-      if (!isSticky && enableColumnReorder) {
-        return (
-          <DraggableHeader
-            key={col.key as string}
-            width={col.width || 100}
-            height={currentRowHeight}
-            index={index}
-            columnKey={col.key as string}
-            title={col.title}
-            theme={tableTheme}
-            onReorder={handleColumnReorder}
-          >
-            {headerContent}
-          </DraggableHeader>
-        );
-      }
-
-      // Static render for sticky or if logic prevents drag
+  /**
+   * Resize handles sit on top of the header cells as siblings, not inside them: nested in a
+   * draggable header, a resize drag would also start the header's long-press reorder.
+   */
+  const renderResizeHandles = () =>
+    columnsWithOffsets.map((col, index) => {
+      if (col.resizable === false) return null;
+      const key = col.key as string;
+      const translateX = stickyTranslations.get(key);
       return (
         <Animated.View
-          key={col.key as string}
+          key={`resize-${key}`}
           style={[
-            styles.headerCellContainer, // Container style
-            { width: col.width || 100 },
-            stickyStyle,
+            styles.resizeHandle,
+            {
+              left: col.offsetX + col.layoutWidth - RESIZE_HANDLE_WIDTH / 2,
+              // Above its own header cell; a non-sticky handle slides under sticky columns.
+              zIndex: translateX ? 101 - index : 2,
+            },
+            translateX && { transform: [{ translateX }] },
           ]}
         >
-          {headerContent}
+          <ColumnResizeHandle
+            width={col.layoutWidth}
+            minWidth={col.minWidth ?? MIN_RESIZE_WIDTH}
+            maxWidth={col.maxWidth ?? MAX_RESIZE_WIDTH}
+            theme={tableTheme}
+            onResizeEnd={newWidth => handleColumnResize(key, newWidth)}
+            label={col.title}
+            testID={`resize-${key}`}
+          />
         </Animated.View>
       );
-    },
+    });
+
+  // --- ROWS ---
+  const rowLabels = useMemo(
+    () => ({
+      selectRow: t.selectRow,
+      dragToReorder: t.dragToReorder,
+      expandRow: t.expandRow,
+      collapseRow: t.collapseRow,
+    }),
+    [t.selectRow, t.dragToReorder, t.expandRow, t.collapseRow]
+  );
+  // Expanded content spans the visible width and stays in view while scrolling sideways.
+  const expandedWidth = viewportWidth > 0 ? viewportWidth : totalWidth;
+  const canEdit = !!onRowChange;
+  const isPressable = !!onRowPress;
+  const rowContext = useMemo<RowContext<T>>(
+    () => ({
+      columns: columnsWithOffsets,
+      rowHeight: currentRowHeight,
+      showLeadingColumn,
+      isReorderMode,
+      isDragEnabled: !sortDirection,
+      canEdit,
+      isPressable,
+      theme: tableTheme,
+      styles,
+      leadingTransform,
+      stickyStyles,
+      rowStyle,
+      getRowStyle,
+      onRowPress: handleRowPress,
+      onToggleRow: handleToggleRow,
+      onStartEdit: startEdit,
+      onEditTextChange: handleEditTextChange,
+      onCommitEdit: commitEdit,
+      onDragEnd: handleRowDragEnd,
+      labels: rowLabels,
+      renderExpandedRow,
+      onToggleExpand: handleToggleExpand,
+      expandedWidth,
+    }),
     [
-      onSort,
-      sortColumn,
+      columnsWithOffsets,
+      currentRowHeight,
+      showLeadingColumn,
+      isReorderMode,
       sortDirection,
-      headerStyle,
-      filters,
-      activeFilterColumn,
-      onFilterChange,
-      onFilterChange,
-      columnOrder, // Re-render if order changes
+      canEdit,
+      isPressable,
       tableTheme,
-      enableColumnReorder, // Re-render if toggle changes
+      styles,
+      leadingTransform,
+      stickyStyles,
+      rowStyle,
+      getRowStyle,
+      handleRowPress,
+      handleToggleRow,
+      startEdit,
+      handleEditTextChange,
+      commitEdit,
+      handleRowDragEnd,
+      rowLabels,
+      renderExpandedRow,
+      handleToggleExpand,
+      expandedWidth,
     ]
   );
 
-  const renderRow = ({ item, index }: ListRenderItemInfo<T>) => {
-    const isEven = index % 2 === 0;
-    const isSelected = selectedIds?.has(item.id);
-    const rowBgColor = isSelected
-      ? tableTheme.rowSelected
-      : isEven
-        ? tableTheme.rowEven
-        : tableTheme.rowOdd;
-
-    // Grouping Logic
-    let isFirstInGroup = false;
-    let isLastInGroup = false;
-
-    if (rowGroupKey) {
-      const currentGroup = item[rowGroupKey];
-      const prevGroup = index > 0 ? data[index - 1][rowGroupKey] : undefined;
-      const nextGroup = index < data.length - 1 ? data[index + 1][rowGroupKey] : undefined;
-
-      isFirstInGroup = currentGroup !== prevGroup;
-      isLastInGroup = currentGroup !== nextGroup;
-    }
-
-    const renderRowContent = (dragGesture?: any) => {
-      const RowComponent = onRowPress ? TouchableOpacity : View;
+  // FlashList calls this for every visible row when it changes, but TableBodyRow is memoized
+  // on its props — so e.g. toggling one checkbox re-renders one row.
+  const renderItem = useCallback(
+    ({ item, index }: ListRenderItemInfo<T>) => {
+      let isFirstInGroup = false;
+      let isLastInGroup = false;
+      if (rowGroupKey) {
+        const group = item[rowGroupKey];
+        isFirstInGroup = index === 0 || data[index - 1][rowGroupKey] !== group;
+        isLastInGroup = index === data.length - 1 || data[index + 1][rowGroupKey] !== group;
+      }
+      const rowId = rowIdOf(item);
       return (
-        <RowComponent
-          onPress={onRowPress ? () => onRowPress(item) : undefined}
-          activeOpacity={onRowPress ? 0.7 : 1}
-          style={[
-            styles.row,
-            { backgroundColor: rowBgColor, height: currentRowHeight },
-            rowGroupKey && { backgroundColor: rowBgColor }, // Ensure bg color applies for radius
-            isFirstInGroup && {
-              borderTopLeftRadius: 12,
-              borderTopRightRadius: 12,
-              marginTop: index === 0 ? 0 : 4,
-            }, // Top Radius + optional margin? Use margin only on last to simplify
-            isLastInGroup && {
-              borderBottomLeftRadius: 12,
-              borderBottomRightRadius: 12,
-            }, // Gap after group
-            rowStyle,
-            getRowStyle?.(item, index),
-          ]}
-        >
-          {enableSelection && renderCheckboxColumn('row', item, rowBgColor, dragGesture)}
-
-          {columnsWithOffsets.map((col, colIndex) => {
-            const stickyStyle = getStickyStyle(col, colIndex, rowBgColor);
-            const isEditing = editingCell?.id === item.id && editingCell?.key === col.key;
-
-            return (
-              <Animated.View
-                key={col.key as string}
-                style={[
-                  styles.cellBase,
-                  {
-                    width: col.width || 100,
-                    justifyContent: getAlign(col.align),
-                    height: currentRowHeight,
-                  },
-
-                  stickyStyle,
-                  (col.isMarked || col.markedColor) && {
-                    backgroundColor: col.markedColor || '#FEF3C7',
-                  }, // Custom or Default marked cell style
-                  col.style, // New: Apply Cell Style from Column
-                ]}
-              >
-                {isEditing ? (
-                  <TextInput
-                    style={styles.editInput}
-                    value={tempValue}
-                    onChangeText={setTempValue}
-                    onBlur={() => handleFinishEdit(item, col.key as string)}
-                    onSubmitEditing={() => handleFinishEdit(item, col.key as string)}
-                    autoFocus
-                    placeholderTextColor="#9ca3af"
-                  />
-                ) : (
-                  <TouchableOpacity
-                    disabled={!col.editable}
-                    onPress={() =>
-                      handleStartEdit(item, col.key as string, item[col.key as keyof T])
-                    }
-                    style={{
-                      flex: 1,
-                      justifyContent: getAlign(col.align) || 'center',
-                      width: '100%',
-                    }}
-                  >
-                    {col.renderCell ? (
-                      col.renderCell(item, index)
-                    ) : (
-                      <Text
-                        style={[
-                          styles.cellText,
-                          col.editable && styles.editableText,
-                          { textAlign: col.align || 'left' },
-                        ]}
-                        numberOfLines={1}
-                      >
-                        {String(item[col.key as keyof T])}
-                      </Text>
-                    )}
-                  </TouchableOpacity>
-                )}
-              </Animated.View>
-            );
-          })}
-        </RowComponent>
-      );
-    };
-
-    if (selectionMode === 'reorder') {
-      return (
-        <DraggableRow
-          key={String(item.id)}
+        <TableBodyRow
+          item={item}
+          rowId={rowId}
           index={index}
-          rowHeight={currentRowHeight}
-          theme={tableTheme}
-          isDragEnabled={!sortDirection} // Disable drag if sorted
-          onReorder={(from, to) => {
-            if (sortDirection) return; // Double protection
-            onRowReorder?.(from, to);
-          }}
-        >
-          {({ dragGesture }) => renderRowContent(dragGesture)}
-        </DraggableRow>
+          isSelected={!!selectedIds?.has(rowId)}
+          isExpanded={expandedIds.has(rowId)}
+          editing={editingCell?.id === rowId ? editingCell : null}
+          isFirstInGroup={isFirstInGroup}
+          isLastInGroup={isLastInGroup}
+          ctx={rowContext}
+        />
       );
-    }
+    },
+    [data, rowGroupKey, rowIdOf, selectedIds, expandedIds, editingCell, rowContext]
+  );
 
-    return renderRowContent();
-  };
+  const keyExtractor = useCallback((item: T) => String(rowIdOf(item)), [rowIdOf]);
 
-  const showToolbar = !!(onSearchChange && onDensityChange && onToggleColumn);
+  const showToolbar =
+    showToolbarProp ??
+    !!(
+      onSearchChange ||
+      onDensityChange ||
+      onToggleColumn ||
+      enableRowReorder ||
+      screenOrientation ||
+      toolbarActions ||
+      renderBulkActions
+    );
+  const activeFilterDef = activeFilterColumn
+    ? columns.find(c => c.key === activeFilterColumn)
+    : undefined;
 
   return (
-    <View style={[styles.container, containerStyle]}>
-      {showToolbar && (
-        <TableToolbar
-          searchQuery={searchQuery || ''}
-          onSearchChange={onSearchChange!}
-          density={density}
-          onDensityChange={onDensityChange!}
-          columns={columns}
-          visibleColumns={visibleColumns || []}
-          onToggleColumn={onToggleColumn!}
-          stickyColumns={stickyColumns}
-          onToggleSticky={onToggleSticky}
-          theme={tableTheme}
-          enableRowReorder={enableRowReorder}
-          selectionMode={selectionMode}
-          onToggleSelectionMode={toggleSelectionMode}
-          selectedCount={selectedIds?.size || 0}
-          translations={t}
-        />
-      )}
+    <TableIconsProvider value={icons}>
+      <View style={[styles.container, containerStyle]}>
+        {showToolbar && (
+          <TableToolbar
+            searchQuery={searchQuery}
+            onSearchChange={onSearchChange}
+            density={density}
+            onDensityChange={onDensityChange}
+            columns={columns}
+            visibleColumns={visibleColumns ?? columns.map(c => c.key as string)}
+            onToggleColumn={onToggleColumn}
+            stickyColumns={stickyColumns}
+            onToggleSticky={onToggleSticky}
+            theme={tableTheme}
+            enableRowReorder={enableRowReorder}
+            selectionMode={selectionMode}
+            onToggleSelectionMode={toggleSelectionMode}
+            selectedCount={selectedIds?.size || 0}
+            translations={t}
+            screenOrientation={screenOrientation}
+            onFullscreenChange={onFullscreenChange}
+            actions={toolbarActions}
+            bulkActions={
+              renderBulkActions && selectedIds && selectedIds.size > 0
+                ? renderBulkActions(selectedIds)
+                : undefined
+            }
+          />
+        )}
 
-      <View style={{ flex: 1 }}>
-        <AnimatedGHScrollView
-          horizontal
-          showsHorizontalScrollIndicator={true}
-          bounces={false}
-          scrollEventThrottle={16}
-          contentContainerStyle={{ flexGrow: 1 }}
-          nestedScrollEnabled={true}
-          onScroll={Animated.event([{ nativeEvent: { contentOffset: { x: scrollX } } }], {
-            useNativeDriver: true,
-          })}
-        >
-          <View style={{ flex: 1 }}>
-            <View
-              key={SCREEN_WIDTH} // Force re-render on orientation change
-              style={{ width: Math.max(SCREEN_WIDTH, totalWidth), flex: 1 }}
-            >
+        <View style={styles.viewport} onLayout={handleViewportLayout}>
+          <AnimatedGHScrollView
+            horizontal
+            showsHorizontalScrollIndicator={true}
+            bounces={false}
+            scrollEventThrottle={16}
+            contentContainerStyle={{ flexGrow: 1 }}
+            nestedScrollEnabled={true}
+            onScroll={handleScroll}
+          >
+            {/*
+            Fill the table's own width (not the screen's) so there is no phantom scroll.
+            Width is explicit only: `flex: 1` would put this view under flex-basis rules on the
+            scroll axis. Height comes from the default cross-axis stretch.
+          */}
+            <View style={{ width: Math.max(viewportWidth, totalWidth) }}>
               {/* HEADER */}
               <View style={[styles.header, headerStyle, { height: currentRowHeight }]}>
-                {enableSelection &&
-                  renderCheckboxColumn('header', undefined, tableTheme.headerBackground)}
+                {showLeadingColumn && renderHeaderLeadingCell()}
+                {isExpandable && renderExpanderPlaceholder()}
                 {columnsWithOffsets.map((col, index) => renderHeaderCell(col, index))}
+                {enableColumnResize && renderResizeHandles()}
               </View>
 
               {/* BODY */}
               <View style={{ flex: 1, minHeight: 2 }}>
-                <FlashList
-                  key={Platform.OS === 'ios' ? listIdentityKey : undefined}
-                  data={data}
-                  extraData={[SCREEN_WIDTH, selectedIds, editingCell, sortColumn, sortDirection]}
-                  renderItem={renderRow}
-                  keyExtractor={item => String(item.id)}
-                  contentContainerStyle={styles.listContent}
-                  // @ts-ignore: estimatedItemSize missing in types
-                  estimatedItemSize={currentRowHeight}
-                  scrollEnabled={scrollEnabled}
-                  ListEmptyComponent={
-                    <View style={styles.emptyContainer}>
-                      <Text style={styles.emptyText}>{t.empty}</Text>
-                    </View>
-                  }
-                />
+                {error ? (
+                  <View style={[styles.statusContainer, viewportStyle]}>
+                    {typeof error === 'string' || typeof error === 'boolean' ? (
+                      <>
+                        <Text style={styles.errorText}>
+                          {typeof error === 'string' ? error : t.error}
+                        </Text>
+                        {onRetry && (
+                          <TouchableOpacity
+                            style={styles.retryButton}
+                            onPress={onRetry}
+                            accessibilityRole="button"
+                          >
+                            <Text style={styles.retryText}>{t.retry}</Text>
+                          </TouchableOpacity>
+                        )}
+                      </>
+                    ) : (
+                      error
+                    )}
+                  </View>
+                ) : (
+                  <FlashList
+                    key={Platform.OS === 'ios' ? listIdentityKey : undefined}
+                    data={data}
+                    // renderItem's identity already tracks everything rows read; FlashList v1
+                    // additionally needs it as extraData to re-render.
+                    extraData={renderItem}
+                    renderItem={renderItem}
+                    keyExtractor={keyExtractor}
+                    contentContainerStyle={styles.listContent}
+                    {...flashListVersionProps}
+                    scrollEnabled={scrollEnabled}
+                    refreshing={!!refreshing}
+                    onRefresh={onRefresh}
+                    onEndReached={onEndReached}
+                    onEndReachedThreshold={onEndReachedThreshold}
+                    ListEmptyComponent={
+                      isLoading ? (
+                        <View style={[styles.statusContainer, viewportStyle]}>
+                          <ActivityIndicator color={tableTheme.primary} />
+                          <Text style={styles.emptyText}>{t.loading}</Text>
+                        </View>
+                      ) : emptyComponent !== undefined ? (
+                        <View style={viewportStyle}>{emptyComponent}</View>
+                      ) : (
+                        <View style={[styles.emptyContainer, viewportStyle]}>
+                          <Text style={styles.emptyText}>{t.empty}</Text>
+                        </View>
+                      )
+                    }
+                    ListFooterComponent={
+                      isLoadingMore ? (
+                        <View
+                          style={[styles.footerLoading, viewportStyle]}
+                          accessibilityRole="progressbar"
+                          accessibilityLabel={t.loading}
+                        >
+                          <ActivityIndicator color={tableTheme.primary} />
+                        </View>
+                      ) : null
+                    }
+                  />
+                )}
               </View>
-            </View>
-          </View>
-        </AnimatedGHScrollView>
-      </View>
 
-      {pagination && (
-        <View style={styles.paginationContainer}>
-          <View style={styles.paginationLeft}>
-            {/* Items Per Page Selector */}
-            {pagination.itemsPerPageOptions && pagination.onItemsPerPageChange && (
-              <View style={styles.perPageContainer}>
-                <Text style={styles.perPageLabel}>{t.show}</Text>
-                <View style={styles.perPageButtons}>
-                  {pagination.itemsPerPageOptions.map(option => (
-                    <TouchableOpacity
-                      key={option}
-                      style={[
-                        styles.perPageButton,
-                        pagination.itemsPerPage === option && styles.perPageButtonActive,
-                      ]}
-                      onPress={() => pagination.onItemsPerPageChange?.(option)}
-                    >
-                      <Text
-                        style={[
-                          styles.perPageButtonText,
-                          pagination.itemsPerPage === option && styles.perPageButtonTextActive,
-                        ]}
-                      >
-                        {option}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-            )}
-          </View>
-
-          <View style={styles.paginationRight}>
-            <Text style={styles.pageInfo}>
-              {t.page} {pagination.currentPage} / {pagination.totalPages}
-            </Text>
-            <View style={styles.paginationButtons}>
-              <TouchableOpacity
-                disabled={pagination.currentPage === 1}
-                onPress={() => pagination.onPageChange(pagination.currentPage - 1)}
-                style={[styles.pageButton, pagination.currentPage === 1 && styles.disabledButton]}
-              >
-                <ChevronLeft
-                  size={20}
-                  color={
-                    pagination.currentPage === 1 ? tableTheme.textSecondary : tableTheme.text
-                  }
-                />
-              </TouchableOpacity>
-              <TouchableOpacity
-                disabled={pagination.currentPage === pagination.totalPages}
-                onPress={() => pagination.onPageChange(pagination.currentPage + 1)}
-                style={[
-                  styles.pageButton,
-                  pagination.currentPage === pagination.totalPages && styles.disabledButton,
-                ]}
-              >
-                <ChevronRight
-                  size={20}
-                  color={
-                    pagination.currentPage === pagination.totalPages
-                      ? tableTheme.textSecondary
-                      : tableTheme.text
-                  }
-                />
-              </TouchableOpacity>
+              {/* FOOTER */}
+              {footerContent.size > 0 && !error && renderFooter()}
             </View>
-          </View>
+          </AnimatedGHScrollView>
+
+          {/* Refetch over existing rows: dim the body and block touches, keep the header. */}
+          {isLoading && data.length > 0 && !error && (
+            <View
+              style={[styles.loadingOverlay, { top: currentRowHeight }]}
+              accessibilityRole="progressbar"
+              accessibilityLabel={t.loading}
+            >
+              <View style={styles.loadingOverlayBackdrop} />
+              <ActivityIndicator color={tableTheme.primary} />
+            </View>
+          )}
         </View>
-      )}
-    </View>
-  );
-}
 
-function createStyles(theme: TableTheme) {
-  return StyleSheet.create({
-    container: {
-      flex: 1,
-      backgroundColor: theme.background,
-      borderRadius: 16,
-      borderWidth: 1,
-      borderColor: theme.border,
-      overflow: 'hidden',
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.1, // Softer shadow
-      shadowRadius: 12, // Larger spread
-      elevation: 5,
-    },
-    header: {
-      flexDirection: 'row',
-      backgroundColor: theme.headerBackground,
-      borderBottomWidth: 1,
-      borderBottomColor: theme.border,
-      alignItems: 'center',
-    },
-    headerCellContainer: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      height: '100%',
-    },
-    headerCell: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingHorizontal: 8, // More breathing room
-      borderRightWidth: 0, // Removed vertical borders for cleaner look
-      height: '100%',
-      justifyContent: 'space-between',
-    },
-    headerContent: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      flex: 1,
-      height: '100%',
-      gap: 6,
-    },
-    filterIcon: {
-      padding: 6,
-      borderRadius: 6,
-      backgroundColor: theme.surfaceHighlight,
-    },
-    filterIconActive: {
-      backgroundColor: theme.primaryLight,
-    },
-    cellBase: {
-      paddingHorizontal: 16,
-      flexDirection: 'row',
-      alignItems: 'center',
-      borderRightWidth: 0, // Removing vertical borders
-    },
-    headerText: {
-      fontFamily: theme.fontFamily.bold,
-      color: theme.headerText,
-      fontSize: 11,
-      textTransform: 'uppercase', // Modern touch
-      letterSpacing: 0.5,
-    },
-    row: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      borderBottomWidth: 1,
-      borderBottomColor: theme.border,
-    },
-    cellText: {
-      fontSize: 14,
-      color: theme.text,
-      fontFamily: theme.fontFamily.medium,
-    },
-    editableText: {
-      color: theme.primary,
-      fontFamily: theme.fontFamily.semibold,
-    },
-    stickyCheckbox: {
-      width: CHECKBOX_WIDTH,
-      justifyContent: 'center',
-      alignItems: 'center',
-      position: 'relative',
-      zIndex: 101,
-      borderRightWidth: 1, // Keep border for sticky separator
-      borderRightColor: theme.border,
-      shadowColor: '#000',
-      shadowOffset: { width: 4, height: 0 },
-      shadowOpacity: 0.05,
-      shadowRadius: 4,
-      elevation: 2,
-    },
-    editInput: {
-      flex: 1,
-      height: 36,
-      padding: 0,
-      borderWidth: 1.5,
-      borderColor: theme.primary,
-      borderRadius: 6,
-      paddingHorizontal: 10,
-      backgroundColor: theme.background,
-      fontSize: 14,
-      color: theme.text,
-    },
-    listContent: {
-      paddingBottom: 0,
-    },
-    emptyContainer: {
-      padding: 48,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    emptyText: {
-      color: theme.textSecondary,
-      fontSize: 16,
-      marginTop: 12,
-    },
-    paginationContainer: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      padding: 12,
-      borderTopWidth: 1,
-      borderTopColor: theme.border,
-      backgroundColor: theme.background,
-      zIndex: 200,
-    },
-    paginationLeft: {
-      flex: 1,
-      flexDirection: 'row',
-      alignItems: 'center',
-    },
-    paginationRight: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 12,
-    },
-    perPageContainer: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
-      backgroundColor: theme.surfaceHighlight,
-      padding: 4,
-      borderRadius: 8,
-    },
-    perPageLabel: {
-      fontSize: 12,
-      color: theme.textSecondary,
-      marginLeft: 4,
-    },
-    perPageButtons: {
-      flexDirection: 'row',
-      gap: 2,
-    },
-    perPageButton: {
-      paddingHorizontal: 10,
-      paddingVertical: 6,
-      borderRadius: 6,
-    },
-    perPageButtonActive: {
-      backgroundColor: theme.background,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 1 },
-      shadowOpacity: 0.1,
-      shadowRadius: 2,
-      elevation: 1,
-    },
-    perPageButtonText: {
-      fontSize: 12,
-      color: theme.textSecondary,
-    },
-    perPageButtonTextActive: {
-      color: theme.primary,
-      fontFamily: theme.fontFamily.bold,
-    },
-    pageInfo: {
-      fontSize: 13,
-      color: theme.textSecondary,
-      fontFamily: theme.fontFamily.medium,
-    },
-    paginationButtons: {
-      flexDirection: 'row',
-      gap: 8,
-    },
-    pageButton: {
-      padding: 6,
-      borderRadius: 8,
-      backgroundColor: theme.background,
-      borderWidth: 1,
-      borderColor: theme.border,
-    },
-    disabledButton: {
-      opacity: 0.4,
-      backgroundColor: theme.surfaceHighlight,
-    },
-  });
+        {pagination && (
+          <View style={styles.paginationContainer}>
+            <View style={styles.paginationLeft}>
+              {pagination.itemsPerPageOptions && pagination.onItemsPerPageChange && (
+                <View style={styles.perPageContainer}>
+                  <Text style={styles.perPageLabel}>{t.show}</Text>
+                  <View style={styles.perPageButtons}>
+                    {pagination.itemsPerPageOptions.map(option => (
+                      <TouchableOpacity
+                        key={option}
+                        style={[
+                          styles.perPageButton,
+                          pagination.itemsPerPage === option && styles.perPageButtonActive,
+                        ]}
+                        onPress={() => pagination.onItemsPerPageChange?.(option)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${option} ${t.rowsPerPage}`}
+                        accessibilityState={{ selected: pagination.itemsPerPage === option }}
+                      >
+                        <Text
+                          style={[
+                            styles.perPageButtonText,
+                            pagination.itemsPerPage === option && styles.perPageButtonTextActive,
+                          ]}
+                        >
+                          {option}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              )}
+            </View>
+
+            <View style={styles.paginationRight}>
+              <Text style={styles.pageInfo}>
+                {t.page} {pagination.currentPage} / {pagination.totalPages}
+              </Text>
+              <View style={styles.paginationButtons}>
+                <TouchableOpacity
+                  disabled={pagination.currentPage === 1}
+                  onPress={() => pagination.onPageChange(pagination.currentPage - 1)}
+                  accessibilityRole="button"
+                  accessibilityLabel={t.previousPage}
+                  accessibilityState={{ disabled: pagination.currentPage === 1 }}
+                  style={[styles.pageButton, pagination.currentPage === 1 && styles.disabledButton]}
+                >
+                  <icons.previousPage
+                    size={20}
+                    color={
+                      pagination.currentPage === 1 ? tableTheme.textSecondary : tableTheme.text
+                    }
+                  />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  disabled={pagination.currentPage === pagination.totalPages}
+                  onPress={() => pagination.onPageChange(pagination.currentPage + 1)}
+                  accessibilityRole="button"
+                  accessibilityLabel={t.nextPage}
+                  accessibilityState={{
+                    disabled: pagination.currentPage === pagination.totalPages,
+                  }}
+                  style={[
+                    styles.pageButton,
+                    pagination.currentPage === pagination.totalPages && styles.disabledButton,
+                  ]}
+                >
+                  <icons.nextPage
+                    size={20}
+                    color={
+                      pagination.currentPage === pagination.totalPages
+                        ? tableTheme.textSecondary
+                        : tableTheme.text
+                    }
+                  />
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        )}
+
+        {activeFilterDef?.filterConfig && (
+          <ColumnFilterModal
+            key={activeFilterColumn}
+            onClose={() => setActiveFilterColumn(null)}
+            columnTitle={activeFilterDef.title}
+            filterConfig={activeFilterDef.filterConfig}
+            currentValue={filters?.[activeFilterDef.key as string]}
+            onApply={value => {
+              onFilterChange?.(activeFilterDef.key as string, value);
+              setActiveFilterColumn(null);
+            }}
+            theme={tableTheme}
+            translations={t}
+          />
+        )}
+      </View>
+    </TableIconsProvider>
+  );
 }

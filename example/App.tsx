@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, View, Pressable } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import * as ScreenOrientation from 'expo-screen-orientation';
 import { ModernTable, useTable, Column } from 'expo-modern-table';
 
 type SubjectScore = {
@@ -32,7 +33,7 @@ const DATA: SubjectScore[] = [
 ];
 
 const COLUMNS: Column<SubjectScore>[] = [
-  { key: 'name', title: 'Subject', width: 140, isSticky: true },
+  { key: 'name', title: 'Subject', width: 140, minWidth: 100, isSticky: true, footer: () => 'Total' },
   {
     key: 'group',
     title: 'Group',
@@ -42,14 +43,15 @@ const COLUMNS: Column<SubjectScore>[] = [
       options: ['verbal', 'social', 'science'],
     },
   },
-  { key: 'total', title: 'T', width: 70, align: 'right' },
-  { key: 'correct', title: 'C', width: 70, align: 'right' },
-  { key: 'wrong', title: 'W', width: 70, align: 'right' },
+  { key: 'total', title: 'T', width: 70, align: 'right', footer: 'sum' },
+  { key: 'correct', title: 'C', width: 70, align: 'right', footer: 'sum' },
+  { key: 'wrong', title: 'W', width: 70, align: 'right', footer: 'sum' },
   {
     key: 'net',
     title: 'Net',
     width: 90,
     align: 'right',
+    footer: 'sum',
     filterConfig: { type: 'number-range' },
     renderCell: item => (
       <Text style={{ fontWeight: '600', color: item.net >= 8 ? '#059669' : '#111827' }}>
@@ -66,68 +68,114 @@ const COLUMNS: Column<SubjectScore>[] = [
   },
 ];
 
+type DemoState = 'data' | 'loading' | 'error' | 'empty';
+const DEMO_STATES: DemoState[] = ['data', 'loading', 'error', 'empty'];
+
 export default function App() {
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [rows, setRows] = useState(DATA);
-  const table = useTable(rows, COLUMNS, 10);
+  const [demoState, setDemoState] = useState<DemoState>('data');
+  const table = useTable(demoState === 'empty' ? [] : rows, COLUMNS, 10);
 
   return (
     <GestureHandlerRootView style={styles.root}>
-      <SafeAreaView style={[styles.safe, theme === 'dark' && styles.safeDark]} edges={['top', 'left', 'right']}>
-        <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
+      <SafeAreaProvider>
+        <SafeAreaView style={[styles.safe, theme === 'dark' && styles.safeDark]} edges={['top', 'left', 'right']}>
+          <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
 
-        <View style={styles.header}>
-          <View>
-            <Text style={[styles.title, theme === 'dark' && styles.textLight]}>
-              expo-modern-table
-            </Text>
-            <Text style={[styles.subtitle, theme === 'dark' && styles.textMuted]}>
-              Example playground
-            </Text>
+          <View style={styles.header}>
+            <View>
+              <Text style={[styles.title, theme === 'dark' && styles.textLight]}>
+                expo-modern-table
+              </Text>
+              <Text style={[styles.subtitle, theme === 'dark' && styles.textMuted]}>
+                Example playground
+              </Text>
+            </View>
+            <Pressable
+              onPress={() => setTheme(prev => (prev === 'light' ? 'dark' : 'light'))}
+              style={[styles.themeButton, theme === 'dark' && styles.themeButtonDark]}
+            >
+              <Text style={[styles.themeButtonText, theme === 'dark' && styles.textLight]}>
+                {theme === 'light' ? 'Dark' : 'Light'}
+              </Text>
+            </Pressable>
           </View>
-          <Pressable
-            onPress={() => setTheme(prev => (prev === 'light' ? 'dark' : 'light'))}
-            style={[styles.themeButton, theme === 'dark' && styles.themeButtonDark]}
-          >
-            <Text style={[styles.themeButtonText, theme === 'dark' && styles.textLight]}>
-              {theme === 'light' ? 'Dark' : 'Light'}
-            </Text>
-          </Pressable>
-        </View>
 
-        <View style={styles.tableWrap}>
-          <ModernTable
-            columns={COLUMNS}
-            {...table.getTableProps()}
-            theme={theme}
-            enableRowReorder
-            enableColumnReorder
-            rowGroupKey="group"
-            onRowChange={updated => {
-              setRows(prev => prev.map(row => (row.id === updated.id ? updated : row)));
-            }}
-            onRowReorder={(from, to) => {
-              const page = table.paginatedData;
-              const fromId = page[from]?.id;
-              const toId = page[to]?.id;
-              if (fromId == null || toId == null) return;
-              setRows(prev => {
-                const next = [...prev];
-                const fromIndex = next.findIndex(r => r.id === fromId);
-                const toIndex = next.findIndex(r => r.id === toId);
-                if (fromIndex < 0 || toIndex < 0) return prev;
-                const [moved] = next.splice(fromIndex, 1);
-                next.splice(toIndex, 0, moved);
-                return next;
-              });
-            }}
-            translations={{
-              searchPlaceholder: 'Search subjects...',
-              empty: 'No subjects found',
-            }}
-          />
-        </View>
-      </SafeAreaView>
+          <View style={styles.demoStates}>
+            {DEMO_STATES.map(state => (
+              <Pressable
+                key={state}
+                onPress={() => setDemoState(state)}
+                style={[
+                  styles.demoChip,
+                  theme === 'dark' && styles.demoChipDark,
+                  demoState === state && styles.demoChipActive,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.demoChipText,
+                    theme === 'dark' && styles.textLight,
+                    demoState === state && styles.demoChipTextActive,
+                  ]}
+                >
+                  {state}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+
+          <View style={styles.tableWrap}>
+            <ModernTable
+              columns={COLUMNS}
+              {...table.getTableProps()}
+              theme={theme}
+              isLoading={demoState === 'loading'}
+              error={demoState === 'error' ? 'Could not load subjects.' : undefined}
+              onRetry={() => setDemoState('data')}
+              screenOrientation={ScreenOrientation}
+              enableRowReorder
+              enableColumnReorder
+              enableColumnResize
+              renderExpandedRow={item => (
+                <Text style={theme === 'dark' ? styles.textLight : undefined}>
+                  {item.name}: {item.correct} correct, {item.wrong} wrong, net {item.net}. Success{' '}
+                  {Math.round((item.correct / item.total) * 100)}%.
+                </Text>
+              )}
+              renderBulkActions={ids => (
+                <Pressable onPress={table.clearSelection} style={styles.bulkButton}>
+                  <Text style={styles.bulkButtonText}>Clear {ids.size}</Text>
+                </Pressable>
+              )}
+              rowGroupKey="group"
+              onRowChange={updated => {
+                setRows(prev => prev.map(row => (row.id === updated.id ? updated : row)));
+              }}
+              onRowReorder={(from, to) => {
+                const page = table.paginatedData;
+                const fromId = page[from]?.id;
+                const toId = page[to]?.id;
+                if (fromId == null || toId == null) return;
+                setRows(prev => {
+                  const next = [...prev];
+                  const fromIndex = next.findIndex(r => r.id === fromId);
+                  const toIndex = next.findIndex(r => r.id === toId);
+                  if (fromIndex < 0 || toIndex < 0) return prev;
+                  const [moved] = next.splice(fromIndex, 1);
+                  next.splice(toIndex, 0, moved);
+                  return next;
+                });
+              }}
+              translations={{
+                searchPlaceholder: 'Search subjects...',
+                empty: 'No subjects found',
+              }}
+            />
+          </View>
+        </SafeAreaView>
+      </SafeAreaProvider>
     </GestureHandlerRootView>
   );
 }
@@ -162,4 +210,24 @@ const styles = StyleSheet.create({
   },
   themeButtonText: { fontWeight: '600', color: '#111827' },
   tableWrap: { flex: 1, paddingHorizontal: 12, paddingBottom: 12 },
+  demoStates: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingBottom: 10 },
+  demoChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  demoChipDark: { backgroundColor: '#1e293b', borderColor: '#334155' },
+  demoChipActive: { backgroundColor: '#4f46e5', borderColor: '#4f46e5' },
+  demoChipText: { fontSize: 13, fontWeight: '600', color: '#111827' },
+  demoChipTextActive: { color: '#fff' },
+  bulkButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: '#fee2e2',
+  },
+  bulkButtonText: { color: '#b91c1c', fontWeight: '600' },
 });

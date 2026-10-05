@@ -65,8 +65,10 @@ npm run ios
 ## Dev notes
 
 - Linked via `"expo-modern-table": "file:.."`
-- Metro watches `../src`, blocks `../node_modules`
+- Metro resolves `expo-modern-table` to `../src/index.ts` and blocks `../node_modules`
 - Library edits hot-reload in Expo Go
+- Smoke-test the built package instead: `npm run build` in the repo root, then
+  `EXAMPLE_USE_LIB=1 npm run start:go -- --clear`
 
 ## Troubleshooting
 

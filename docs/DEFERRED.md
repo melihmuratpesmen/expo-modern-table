@@ -9,7 +9,7 @@ Track props, features, and half-finished structures removed or postponed during 
 |------|-------|----------------------|
 | `stickyHeader` | Declared on `ModernTableProps`, never applied to header/list. | Pin header while body scrolls vertically (FlashList sticky header / absolute header). |
 | `enableGlobalSearch` | Declared; toolbar search already gated by `onSearchChange` presence. | Explicit flag to show/hide search independently of other toolbar controls. |
-| `isLoading` | Declared; no loading UI. | Overlay / skeleton / `ListEmptyComponent` loading state. |
+| `isLoading` | Declared; no loading UI. | Re-added in `0.3.0` with a real implementation (spinner / dimmed refetch). Skeleton rows still open. |
 | `onSelectionChange` | Declared; selection used `onToggleOne` / `onToggleAll` only. | Optional bulk callback `(ids: RowId[]) => void` fired after each toggle, or replace toggle API. |
 | `emptyMessage` | Replaced by `translations.empty`. | — (done via i18n) |
 
@@ -35,34 +35,29 @@ Re-export later only if we want a headless / compose-your-own API.
 ## Half-finished / fragile areas to finish later
 
 ### Sort header → direction
-Previously header always called `onSort(key, 'asc')`. Fixed in polish to cycle
-`null → asc → desc → null`. Still worth a dedicated unit test and optional
-`enableSortClear` / per-column `sortable` flag.
+Cycles `null → asc → desc → null` (`core/sort.ts`, unit-tested in `0.2.0`); per-column
+`sortable` / `sortFn` since `0.4.0`. Still open: optional `enableSortClear`.
 
 ### Column order sync
-Internal `columnOrder` only resynced when `columns.length` changed. Polish adds
-optional controlled `columnOrder` prop. Still weak when keys change without length
-change — improve key-set diff sync.
+Done in `0.2.0`: order is reconciled with the current column keys on every render
+(`core/columns.ts#reconcileOrder`), for both controlled and internal order.
 
 ### `selectionMode` was props-ignored
 Props `selectionMode` / `onToggleSelectionMode` existed but ModernTable always used
 internal state. Polish wires semi-controlled `selectionMode` + `onSelectionModeChange`.
 
 ### Toolbar show condition
-Toolbar appears only when `onSearchChange && onDensityChange && onToggleColumn` are
-all set. Too all-or-nothing — later: `showToolbar?: boolean` or per-slot flags
-(`showSearch`, `showDensity`, `showColumnMenu`).
+Done in `0.4.0`: each control follows its handler, plus `showToolbar`, `toolbarActions`,
+`renderBulkActions`.
 
 ### Pagination theming
 Chevron colors were hardcoded (`#ccc` / `#333`). Moved to theme tokens; pagination
 still has no `translations` for a11y labels (prev/next).
 
 ### `useTable` gaps
-- No controlled mode for individual slices (always owns state).
-- `toggleAllSelection` scopes to **current page** only — document or add
-  `selectAllScope: 'page' | 'filtered'`.
-- No `columnOrder` state in `useTable` yet (table manages it).
-- No `getRowId` override — requires `T extends { id }`.
+- No controlled mode for individual slices (always owns state; `initialState` seeds it).
+- Done in `0.5.0`: `useTable` owns column order and widths.
+- Done in `0.3.0`: `selectAllScope`, `getRowId`, options object.
 
 ### Filter modal
 Boolean filters historically mixed `true`/`false` with stringly values. Typed as
@@ -73,24 +68,30 @@ Left in MyExamy app (depends on `ExView` / `ExText`). Not part of this package.
 Consider a minimal unstyled `SimpleTable` later if needed.
 
 ### Loading / empty / error triad
-Only empty copy exists. Loading and error states were never started.
+Done in `0.3.0` (`isLoading`, `isLoadingMore`, `error` + `onRetry`, `emptyComponent`).
+Still open: skeleton rows.
 
 ### Server-side / remote data
-All filter/sort/paginate are client-side via `useTable`. Remote mode
-(`manualSorting`, `manualPagination`, total count) not started.
+Done in `0.3.0`: `manual` mode is all-or-nothing. Still open: per-slice manual flags
+(e.g. server sorting with client pagination).
 
 ### Accessibility
-No `accessibilityLabel` / role wiring on sort headers, checkboxes, or toolbar actions.
+Done in `0.5.0` (roles, labels, states; translatable). Not yet verified with VoiceOver /
+TalkBack on devices.
 
 ### Fullscreen
-Depends on optional `expo-screen-orientation`. No bare-RN fallback beyond hiding the button.
+Since `0.2.0` the module is injected via `screenOrientation` (no optional `require`).
+Fullscreen = landscape lock only; hiding app chrome is left to `onFullscreenChange`.
 
 ## Intentionally postponed features (not started)
 
-- Column resize
-- Column pin presets / persistence (AsyncStorage)
-- CSV / export
+- ~~Column resize~~ — done in `0.4.0`
+- ~~Column pin presets / persistence~~ — `preferences` / `onPreferencesChange` in `0.5.0`
+- ~~CSV / export~~ — `getCsv` / `toCsv` in `0.5.0`
 - Virtualized horizontal sticky improvements
+- iOS list remount on sort (`key={listIdentityKey}`, see KNOWN_ISSUES): with content anchoring
+  turned off in `0.5.0` it may no longer be needed; removing it would keep the scroll position on
+  sort. Re-check with FlashList v1 and v2 before dropping it
 
 
 ## When picking work up
@@ -108,3 +109,12 @@ Depends on optional `expo-screen-orientation`. No bare-RN fallback beyond hiding
 | Example Expo app (SDK 54) | `0.1.0` | Expo Go–compatible playground |
 | npm publish | `0.1.0` | https://www.npmjs.com/package/expo-modern-table |
 | Docs / media / README landing | `0.1.1` | Badges, previews, docs index synced to npm |
+| Tooling: ESLint, Prettier, Jest, CI | `0.2.0` | React Compiler lint rules partly downgraded to warnings until phase 4 |
+| Pure core (`src/core`) + tests | `0.2.0` | sort / filter / search / paginate / selection / reorder / edit |
+| Bug-fix pass | `0.2.0` | See CHANGELOG `0.2.0` |
+| Compiled package (builder-bob, exports) | `0.2.0` | Strict consumers no longer type-check `src` |
+| Row memoization, shared sticky interpolations, indexed search | `0.2.0` | Kept RN `Animated` (native driver) — a Reanimated migration wasn't needed |
+| `useTable` options, server-side (`manual`) mode, `getRowId` | `0.3.0` | Replaces the "useTable gaps" and "Server-side / remote data" notes |
+| Loading / error / empty states, refresh, infinite scroll | `0.3.0` | `isLoading`, `isLoadingMore`, `error`, `onRetry`, `emptyComponent`, … |
+| Column accessors, flex widths, resize, toolbar slots, bulk actions, icons | `0.4.0` | See CHANGELOG `0.4.0` |
+| Summary row, expandable rows, CSV, preferences, accessibility, TR translations, web | `0.5.0` | See CHANGELOG `0.5.0` |

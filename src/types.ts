@@ -1,9 +1,16 @@
 import { ReactNode } from 'react';
 import { StyleProp, ViewStyle } from 'react-native';
 import { TableTheme } from './theme/tokens';
+import type { ScreenOrientationModule } from './hooks/useFullscreenOrientation';
+import type { TableIcons } from './icons';
 
 export type RowId = string | number;
 export type TableRow = { id: RowId };
+
+/** `getRowId` is optional when rows have an `id` field and required otherwise. */
+export type RowIdAccessor<T> = T extends TableRow
+  ? { getRowId?: (row: T) => RowId }
+  : { getRowId: (row: T) => RowId };
 
 export type SortDirection = 'asc' | 'desc' | null;
 export type Density = 'compact' | 'standard' | 'comfortable';
@@ -14,11 +21,7 @@ export interface FilterConfig {
   options?: string[];
 }
 
-export type FilterValue =
-  | string
-  | boolean
-  | { min?: number; max?: number }
-  | undefined;
+export type FilterValue = string | boolean | { min?: number; max?: number } | undefined;
 
 export interface TableTranslations {
   searchPlaceholder: string;
@@ -36,6 +39,25 @@ export interface TableTranslations {
   show: string;
   page: string;
   empty: string;
+  loading: string;
+  error: string;
+  retry: string;
+  // Screen-reader labels
+  selectAll: string;
+  selectRow: string;
+  sortAscending: string;
+  sortDescending: string;
+  previousPage: string;
+  nextPage: string;
+  rowsPerPage: string;
+  fullscreen: string;
+  density: string;
+  reorderRows: string;
+  dragToReorder: string;
+  pinColumn: string;
+  close: string;
+  expandRow: string;
+  collapseRow: string;
 }
 
 export const DEFAULT_TRANSLATIONS: TableTranslations = {
@@ -54,15 +76,96 @@ export const DEFAULT_TRANSLATIONS: TableTranslations = {
   show: 'Show:',
   page: 'Page',
   empty: 'No data found.',
+  loading: 'Loading…',
+  error: 'Something went wrong.',
+  retry: 'Retry',
+  selectAll: 'Select all',
+  selectRow: 'Select row',
+  sortAscending: 'sorted ascending',
+  sortDescending: 'sorted descending',
+  previousPage: 'Previous page',
+  nextPage: 'Next page',
+  rowsPerPage: 'rows per page',
+  fullscreen: 'Fullscreen',
+  density: 'Row density',
+  reorderRows: 'Reorder rows',
+  dragToReorder: 'Drag to reorder',
+  pinColumn: 'Pin column',
+  close: 'Close',
+  expandRow: 'Expand row',
+  collapseRow: 'Collapse row',
+};
+
+/** Turkish translations: `translations={TR_TRANSLATIONS}`. */
+export const TR_TRANSLATIONS: TableTranslations = {
+  searchPlaceholder: 'Ara...',
+  all: 'Tümü',
+  yesActive: 'Evet',
+  noPassive: 'Hayır',
+  min: 'En az',
+  max: 'En çok',
+  unknownFilter: 'Bilinmeyen filtre',
+  filter: 'Filtrele',
+  clear: 'Temizle',
+  apply: 'Uygula',
+  selected: 'Seçili',
+  columns: 'Sütunlar',
+  show: 'Göster:',
+  page: 'Sayfa',
+  empty: 'Kayıt bulunamadı.',
+  loading: 'Yükleniyor…',
+  error: 'Bir şeyler ters gitti.',
+  retry: 'Tekrar dene',
+  selectAll: 'Tümünü seç',
+  selectRow: 'Satırı seç',
+  sortAscending: 'artan sıralı',
+  sortDescending: 'azalan sıralı',
+  previousPage: 'Önceki sayfa',
+  nextPage: 'Sonraki sayfa',
+  rowsPerPage: 'satır / sayfa',
+  fullscreen: 'Tam ekran',
+  density: 'Satır yoğunluğu',
+  reorderRows: 'Satırları sırala',
+  dragToReorder: 'Sürükleyerek taşı',
+  pinColumn: 'Sütunu sabitle',
+  close: 'Kapat',
+  expandRow: 'Satırı genişlet',
+  collapseRow: 'Satırı daralt',
 };
 
 export interface Column<T> {
   key: Extract<keyof T, string> | (string & {});
   title: string;
+  /** Fixed width, or the starting width of a `flex` column. Default 100. */
   width?: number;
+  /** Share of the leftover horizontal space (like flex-grow). */
+  flex?: number;
+  minWidth?: number;
+  maxWidth?: number;
   isSticky?: boolean;
   align?: 'left' | 'center' | 'right';
+  /**
+   * The value used for sorting, filtering, search and the default cell text. Defaults to
+   * `row[key]` — use it for computed or nested values.
+   */
+  getValue?: (row: T) => unknown;
+  /** Default true (when the table has `onSort`). */
+  sortable?: boolean;
+  /** Ascending comparator; replaces the built-in comparison for this column. */
+  sortFn?: (a: T, b: T) => number;
+  /** Include in the toolbar search. Default true. */
+  searchable?: boolean;
+  /** Allow drag-resizing when the table has `enableColumnResize`. Default true. */
+  resizable?: boolean;
+  /** Custom header content in place of the title (sort / filter icons stay). */
+  renderHeader?: (column: Column<T>) => ReactNode;
   renderCell?: (item: T, index: number) => ReactNode;
+  /**
+   * Summary row cell: a built-in aggregation over the footer rows, or a function returning
+   * the content (e.g. `() => 'Total'` for a label column).
+   */
+  footer?: 'sum' | 'avg' | 'min' | 'max' | 'count' | ((rows: T[]) => ReactNode);
+  /** Tap-to-edit text cell. Needs `onRowChange`; numeric values are written back as numbers. */
   editable?: boolean;
   hidden?: boolean;
 
@@ -89,7 +192,7 @@ export interface PaginationProps {
  * Internal-only UI state (not in this interface): cell editing, open filter modal.
  * Semi-controlled: `selectionMode`, `columnOrder` — controlled when provided, else internal.
  */
-export interface ModernTableProps<T extends TableRow> {
+export interface ModernTableBaseProps<T extends object> {
   data: T[];
   columns: Column<T>[];
 
@@ -97,6 +200,8 @@ export interface ModernTableProps<T extends TableRow> {
   enableSelection?: boolean;
   selectedIds?: Set<RowId>;
   isAllSelected?: boolean;
+  /** Some (not all) rows selected — the header checkbox shows a dash. */
+  isSomeSelected?: boolean;
   onToggleAll?: () => void;
   onToggleRow?: (id: RowId) => void;
 
@@ -112,6 +217,13 @@ export interface ModernTableProps<T extends TableRow> {
   // Pagination
   pagination?: PaginationProps;
 
+  /**
+   * Rows the summary row (`Column.footer`) aggregates. Defaults to `data`; `useTable` passes
+   * every row matching the filters, not only the current page — except in `manual` mode, where
+   * only the current page exists (use a function footer with server totals there).
+   */
+  footerData?: T[];
+
   // Density
   density?: Density;
   onDensityChange?: (d: Density) => void;
@@ -123,6 +235,12 @@ export interface ModernTableProps<T extends TableRow> {
   columnOrder?: string[];
   onColumnReorder?: (newOrder: string[]) => void;
   enableColumnReorder?: boolean;
+
+  /** Drag the right edge of a header to resize its column. */
+  enableColumnResize?: boolean;
+  /** Controlled column widths (key → width) set by resizing. Internal when omitted. */
+  columnWidths?: Record<string, number>;
+  onColumnResize?: (key: string, width: number) => void;
 
   // Sticky
   stickyColumns?: string[];
@@ -145,6 +263,8 @@ export interface ModernTableProps<T extends TableRow> {
   getRowStyle?: (item: T, index: number) => StyleProp<ViewStyle>;
 
   // Theme & I18n
+  /** Replace built-in (lucide) icons, e.g. `{ search: MySearchIcon }`. */
+  icons?: Partial<TableIcons>;
   theme?: TableTheme | 'light' | 'dark';
   themeConfig?: Partial<TableTheme>;
   translations?: Partial<TableTranslations>;
@@ -155,4 +275,53 @@ export interface ModernTableProps<T extends TableRow> {
 
   scrollEnabled?: boolean;
   onRowPress?: (item: T) => void;
+
+  // Expandable rows
+  /** Detail content below a row; adds an expand / collapse button to each row. */
+  renderExpandedRow?: (item: T, index: number) => ReactNode;
+  /** Controlled expanded rows. Internal when omitted. */
+  expandedIds?: Set<RowId>;
+  onToggleExpand?: (id: RowId) => void;
+
+  // Toolbar
+  /**
+   * Default: shown when any toolbar control is available (search, density, column menu, row
+   * reorder, fullscreen, custom or bulk actions). Each control needs its handler.
+   */
+  showToolbar?: boolean;
+  /** Extra buttons at the end of the toolbar. */
+  toolbarActions?: ReactNode;
+  /** Replaces the search field while rows are selected, e.g. delete / export buttons. */
+  renderBulkActions?: (selectedIds: Set<RowId>) => ReactNode;
+
+  // Loading / error / empty
+  /** Blocking load: a spinner replaces the empty state, or dims the rows while refetching. */
+  isLoading?: boolean;
+  /** Non-blocking load (e.g. next page of an infinite list): a spinner below the rows. */
+  isLoadingMore?: boolean;
+  /** Shown instead of the rows. A string uses the built-in error view. */
+  error?: ReactNode;
+  /** Shows a retry button in the built-in error view. */
+  onRetry?: () => void;
+  /** Replaces the built-in "no data" view. */
+  emptyComponent?: ReactNode;
+
+  // Pull to refresh / infinite scroll (passed to FlashList)
+  refreshing?: boolean;
+  onRefresh?: () => void;
+  onEndReached?: () => void;
+  onEndReachedThreshold?: number;
+
+  /**
+   * Pass `expo-screen-orientation` (`import * as ScreenOrientation from 'expo-screen-orientation'`)
+   * to show the toolbar fullscreen (landscape) button.
+   */
+  screenOrientation?: ScreenOrientationModule;
+  onFullscreenChange?: (isFullscreen: boolean) => void;
 }
+
+/**
+ * Props of `ModernTable`. Rows need an `id` field, or pass `getRowId` (memoize it — a new
+ * function re-renders every row).
+ */
+export type ModernTableProps<T extends object> = ModernTableBaseProps<T> & RowIdAccessor<T>;

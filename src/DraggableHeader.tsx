@@ -1,23 +1,28 @@
-import React from "react";
-import { StyleSheet } from "react-native";
-import { GestureDetector, Gesture } from "react-native-gesture-handler";
+import React, { useMemo } from 'react';
+import { StyleSheet } from 'react-native';
+import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withSpring,
   runOnJS,
-} from "react-native-reanimated";
-import { TableTheme } from "./theme/tokens";
+} from 'react-native-reanimated';
+import { TableTheme } from './theme/tokens';
+import { useStableCallback } from './hooks/useStableCallback';
+
+/** Long-press before a header drag starts, so horizontal scrolling over headers still works. */
+const DRAG_ACTIVATION_DELAY_MS = 250;
 
 interface DraggableHeaderProps {
-  title: string;
   width: number;
   height: number;
   index: number;
-  columnKey: string;
   theme: TableTheme;
-  onReorder: (fromIndex: number, toIndex: number) => void;
+  /** Called with the header's index and total horizontal drag distance. */
+  onDragEnd: (index: number, translationX: number) => void;
   children: React.ReactNode;
+  /** Gesture test id, for `react-native-gesture-handler/jest-utils`. */
+  testID?: string;
 }
 
 export function DraggableHeader({
@@ -25,38 +30,47 @@ export function DraggableHeader({
   height,
   index,
   theme,
-  onReorder,
+  onDragEnd,
   children,
+  testID,
 }: DraggableHeaderProps) {
   const translationX = useSharedValue(0);
   const isDragging = useSharedValue(false);
   const zIndex = useSharedValue(1);
   const scale = useSharedValue(1);
 
-  const panGesture = Gesture.Pan()
-    .onBegin(() => {
-      isDragging.value = true;
-      zIndex.value = 100;
-      scale.value = 1.05;
-    })
-    .onUpdate((e) => {
-      translationX.value = e.translationX;
-    })
-    .onEnd((e) => {
-      isDragging.value = false;
-      zIndex.value = 1;
-      scale.value = 1;
+  // Reads the latest index, so the gesture below never has to be rebuilt mid-drag (a rebuilt
+  // gesture loses its finalize callback and leaves the header stuck in the lifted state).
+  const handleDragEnd = useStableCallback((dx: number) => onDragEnd(index, dx));
 
-      // Calculate the approximate index moved based on width
-      const movedSlots = Math.round(e.translationX / width);
-      const newIndex = index + movedSlots;
-
-      if (movedSlots !== 0) {
-        runOnJS(onReorder)(index, newIndex);
-      }
-
-      translationX.value = withSpring(0);
-    });
+  // Shared values are mutable by design inside worklets; the compiler rule doesn't know that.
+  /* eslint-disable react-hooks/immutability */
+  const panGesture = useMemo(
+    () =>
+      Gesture.Pan()
+        .withTestId(testID ?? '')
+        .activateAfterLongPress(DRAG_ACTIVATION_DELAY_MS)
+        .onStart(() => {
+          isDragging.value = true;
+          zIndex.value = 100;
+          scale.value = 1.05;
+        })
+        .onUpdate(e => {
+          translationX.value = e.translationX;
+        })
+        .onEnd(e => {
+          if (e.translationX !== 0) runOnJS(handleDragEnd)(e.translationX);
+        })
+        .onFinalize(() => {
+          // Runs for taps and cancelled gestures too, so the header never stays "lifted".
+          isDragging.value = false;
+          zIndex.value = 1;
+          scale.value = 1;
+          translationX.value = withSpring(0);
+        }),
+    [testID, handleDragEnd, isDragging, zIndex, scale, translationX]
+  );
+  /* eslint-enable react-hooks/immutability */
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: translationX.value }, { scale: scale.value }],
@@ -83,8 +97,6 @@ export function DraggableHeader({
 
 const styles = StyleSheet.create({
   container: {
-    justifyContent: "center",
-    // positioning will be handled by the parent list layout,
-    // but the transform moves it relative to that slot
+    justifyContent: 'center',
   },
 });
