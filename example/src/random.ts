@@ -19,7 +19,16 @@ export function createRandom(seed: number) {
     }
     return entries[entries.length - 1][0];
   };
-  return { next, int, pick, weighted };
+  /** Fisher–Yates; unlike `sort(() => random() - 0.5)` it draws the same numbers on every JS engine. */
+  const shuffle = <T>(items: readonly T[]): T[] => {
+    const result = [...items];
+    for (let i = result.length - 1; i > 0; i--) {
+      const j = Math.floor(next() * (i + 1));
+      [result[i], result[j]] = [result[j], result[i]];
+    }
+    return result;
+  };
+  return { next, int, pick, weighted, shuffle };
 }
 
 export type Random = ReturnType<typeof createRandom>;

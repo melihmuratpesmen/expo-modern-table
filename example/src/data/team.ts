@@ -97,7 +97,7 @@ export function generateTeam(): Member[] {
       const status: MemberStatus =
         yearsAgo < 0.25 ? 'new' : random.next() < 0.08 ? 'onLeave' : 'active';
       const pool = SKILLS[department];
-      const skills = [...pool].sort(() => random.next() - 0.5).slice(0, random.int(2, 4));
+      const skills = random.shuffle(pool).slice(0, random.int(2, 4));
 
       members.push({
         id: `m${++n}`,

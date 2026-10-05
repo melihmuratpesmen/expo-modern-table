@@ -317,6 +317,7 @@ export function OrdersScenario({ mode, compact, showToast, screenOrientation }: 
                 label={t.orders.exportCsv}
                 icon={Download}
                 tone="neutral"
+                compact={compact}
                 onPress={() => exportSelected(ids)}
               />
             </View>
