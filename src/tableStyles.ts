@@ -204,8 +204,12 @@ export function createTableStyles(theme: TableTheme) {
     },
     paginationContainer: {
       flexDirection: 'row',
+      // Wraps the page controls under the page-size picker when both don't fit (narrow phones).
+      flexWrap: 'wrap',
       justifyContent: 'space-between',
       alignItems: 'center',
+      rowGap: 8,
+      columnGap: 12,
       padding: 12,
       borderTopWidth: 1,
       borderTopColor: theme.border,
@@ -213,7 +217,6 @@ export function createTableStyles(theme: TableTheme) {
       zIndex: 200,
     },
     paginationLeft: {
-      flex: 1,
       flexDirection: 'row',
       alignItems: 'center',
     },
@@ -221,6 +224,7 @@ export function createTableStyles(theme: TableTheme) {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 12,
+      marginLeft: 'auto',
     },
     perPageContainer: {
       flexDirection: 'row',
