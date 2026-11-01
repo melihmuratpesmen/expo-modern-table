@@ -6,7 +6,7 @@
     "@expo/metro-runtime": "~57.0.16",
     "@shopify/flash-list": "2.0.2",
     "babel-preset-expo": "~57.0.0",
-    "expo": "^57.0.0",
+    "expo": "^58.0.22",
     "expo-screen-orientation": "~57.0.2",
     "expo-status-bar": "~57.0.1",
     "lucide-react-native": "^0.556.0",
