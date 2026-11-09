@@ -380,11 +380,11 @@ export function ModernTable<T extends object>({
         transform: [{ translateX }],
         borderRightWidth: 1,
         borderRightColor: tableTheme.border,
+        // iOS-only edge shadow; see `stickyCheckbox` for why there is no `elevation`.
         shadowColor: '#000',
         shadowOffset: { width: 2, height: 0 },
         shadowOpacity: 0.05,
         shadowRadius: 2,
-        elevation: 3,
       });
     });
     return map;
