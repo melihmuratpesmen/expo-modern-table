@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Docs & example
+
+- The example app and live demo run on Expo SDK 58 (React Native 0.88, React 19.3,
+  react-native-gesture-handler 3.3, Reanimated 4.7, FlashList 2.3). No library changes were
+  needed. Running the example now requires Node.js 22.13 or newer.
+
 ## 0.5.1
 
 ### Fixed

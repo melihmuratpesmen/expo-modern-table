@@ -118,4 +118,4 @@ Fullscreen = landscape lock only; hiding app chrome is left to `onFullscreenChan
 | Loading / error / empty states, refresh, infinite scroll | `0.3.0` | `isLoading`, `isLoadingMore`, `error`, `onRetry`, `emptyComponent`, … |
 | Column accessors, flex widths, resize, toolbar slots, bulk actions, icons | `0.4.0` | See CHANGELOG `0.4.0` |
 | Summary row, expandable rows, CSV, preferences, accessibility, TR translations, web | `0.5.0` | See CHANGELOG `0.5.0` |
-| Docs website, showcase example (SDK 57), brand, launch kit | next | GitHub Pages via `.github/workflows/docs.yml` |
+| Docs website, showcase example (SDK 58), brand, launch kit | next | GitHub Pages via `.github/workflows/docs.yml` |

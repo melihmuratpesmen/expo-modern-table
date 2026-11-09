@@ -1,4 +1,4 @@
-# expo-modern-table showcase (Expo SDK 57)
+# expo-modern-table showcase (Expo SDK 58)
 
 The example app is also the [live demo](https://melihmuratpesmen.github.io/expo-modern-table/demo/).
 Three realistic scenarios, English / Turkish, light / dark:
@@ -13,7 +13,7 @@ All demo data is generated (seeded) on the device. Market prices are simulated.
 
 ## Run it
 
-Expo Go from the App Store / Play Store opens **SDK 57** projects.
+Expo Go from the App Store / Play Store opens **SDK 58** projects. SDK 58 needs Node.js 22.13 or newer.
 
 ```bash
 git clone https://github.com/melihmuratpesmen/expo-modern-table.git
@@ -58,7 +58,8 @@ src/i18n.tsx            EN / TR strings and Intl formatters
 
 | Problem | Fix |
 |---------|-----|
-| "Project is incompatible with this version of Expo Go" | Update Expo Go — the example targets SDK 57 |
+| "Project is incompatible with this version of Expo Go" | Update Expo Go — the example targets SDK 58 |
 | QR / connection fails on Wi-Fi | `npm run tunnel` |
+| "Node.js is outdated and unsupported" | Use Node.js 22.13 or newer (`nvm use 24`) |
 | Port busy | `npx expo start --go --port 8084` |
 | Blank screen or red box after opening | Restart Metro with `--clear` |
