@@ -92,8 +92,6 @@ Fullscreen = landscape lock only; hiding app chrome is left to `onFullscreenChan
 - iOS list remount on sort (`key={listIdentityKey}`, see KNOWN_ISSUES): with content anchoring
   turned off in `0.5.0` it may no longer be needed; removing it would keep the scroll position on
   sort. Re-check with FlashList v1 and v2 before dropping it
-- Delete `docs/media/demo.gif` and `docs/media/demo-mobile.gif` once a version with the new
-  README is on npm — the 0.5.0 README on npmjs.com still links to them
 
 
 ## When picking work up
