@@ -94,12 +94,12 @@ no custom native code. Bare React Native apps also add the Reanimated / worklets
 
 | Peer | Supported | Tested with |
 | --- | --- | --- |
-| `react`, `react-native` | `>=18`, `>=0.73` | React 19.2 · RN 0.86 (Expo SDK 57) |
-| `@shopify/flash-list` | v1 (`>=1.6`) or v2 | 2.0 |
-| `react-native-gesture-handler` | `>=2.14` | 2.32 |
-| `react-native-reanimated` | `>=3.6` | 4.5 |
-| `lucide-react-native` + `react-native-svg` | default icons, [replaceable](https://melihmuratpesmen.github.io/expo-modern-table/guides/theming/#icons) | 0.556 · 15.15 |
-| `expo-screen-orientation` | optional — fullscreen button | 57 |
+| `react`, `react-native` | `>=18`, `>=0.73` | React 19.3 · RN 0.88 (Expo SDK 58) |
+| `@shopify/flash-list` | v1 (`>=1.6`) or v2 | 2.3 |
+| `react-native-gesture-handler` | `>=2.14` | 3.3 |
+| `react-native-reanimated` | `>=3.6` | 4.7 |
+| `lucide-react-native` + `react-native-svg` | default icons, [replaceable](https://melihmuratpesmen.github.io/expo-modern-table/guides/theming/#icons) | 0.556 · 15.16 |
+| `expo-screen-orientation` | optional — fullscreen button | 58 |
 
 ## Quick start
 
@@ -194,7 +194,7 @@ full [props](https://melihmuratpesmen.github.io/expo-modern-table/reference/mode
 ## Try the example
 
 The [live demo](https://melihmuratpesmen.github.io/expo-modern-table/demo/) is the example app
-exported for the web. To run it on your phone with **Expo Go (SDK 57)**:
+exported for the web. To run it on your phone with **Expo Go (SDK 58)**:
 
 ```bash
 git clone https://github.com/melihmuratpesmen/expo-modern-table.git
