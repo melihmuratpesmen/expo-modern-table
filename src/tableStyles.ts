@@ -129,11 +129,12 @@ export function createTableStyles(theme: TableTheme) {
       zIndex: 101,
       borderRightWidth: 1, // Keep border for sticky separator
       borderRightColor: theme.border,
+      // iOS-only edge shadow. No `elevation`: Android draws it on every side of each cell, which
+      // shows up as a shadow line under every row. `zIndex` already keeps the cell on top.
       shadowColor: '#000',
       shadowOffset: { width: 4, height: 0 },
       shadowOpacity: 0.05,
       shadowRadius: 4,
-      elevation: 2,
     },
     editInput: {
       flex: 1,

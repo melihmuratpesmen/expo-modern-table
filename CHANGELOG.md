@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Fixed
+
+- Android: sticky cells no longer draw a shadow line under every row after scrolling or
+  sorting. The sticky edge shadow is iOS-only now; Android keeps the separator border.
+
 ### Docs & example
 
 - The example app and live demo run on Expo SDK 58 (React Native 0.88, React 19.3,
