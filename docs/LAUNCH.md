@@ -1,7 +1,8 @@
 # Launch kit
 
 Ready-to-post copy for announcing **expo-modern-table**, in English and Turkish. Everything here
-is accurate as of v0.5 — keep it that way: no "fastest", no "only", no invented numbers.
+is accurate as of v0.5.2 (example app on Expo SDK 58 / React Native 0.88) — keep it that way: no
+"fastest", no "only", no invented numbers.
 
 ## Links & assets
 
@@ -35,6 +36,7 @@ selection and a totals row — on the device, or through your API with one flag.
 **Proof points** (pick two or three)
 
 - Built on FlashList; runs in Expo Go, bare React Native and the web
+- Tested with the latest Expo SDK (58, React Native 0.88) on iOS, Android and web
 - Sticky columns, drag to resize / reorder columns and rows, expandable rows, summary row
 - Server-side mode: `table.state` is a ready query key for TanStack Query / Supabase
 - Light & dark themes, every string translatable (English + Turkish included), accessibility labels
@@ -416,8 +418,8 @@ https://melihmuratpesmen.github.io/expo-modern-table/demo/
 
 ## Checklist before posting
 
-- [ ] Latest version published to npm (README with the new visuals)
-- [ ] GitHub Pages is live and the demo loads on a phone
-- [ ] Social preview uploaded (Settings → General → Social preview)
-- [ ] Repository description, website and topics set
-- [ ] Pinned issue or discussion for feedback
+- [x] Latest version published to npm (0.5.2, README with the new visuals)
+- [ ] GitHub Pages is live and the demo loads on a phone (live on desktop; check on a phone)
+- [x] Social preview uploaded (Settings → General → Social preview)
+- [x] Repository description, website and topics set
+- [ ] Pinned issue or discussion for feedback (Discussions are off — enable them or pin an issue)
